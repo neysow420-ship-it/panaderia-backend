@@ -1,0 +1,12 @@
+#  entorno local (NUNCA se suben)
+.env
+
+# Rust
+target/
+
+# Logs, editores y sistema
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
