@@ -42,3 +42,4 @@ El proyecto utilizará integración continua para verificar el formato del códi
 ## Trabajo colaborativo
 
 Los cambios se propondrán mediante Pull Requests hacia `main` y deberán cumplir las reglas de revisión y las comprobaciones automatizadas establecidas en el repositorio.
+Prueba del flujo de PR
