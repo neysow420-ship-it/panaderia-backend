@@ -1,0 +1,61 @@
+# Nombre que aparecerá en la pestaña Actions de GitHub
+name: CI
+
+# Eventos que activan la automatización
+on:
+  # Ejecutar cuando se suban cambios a la rama main
+  push:
+    branches: [main]
+
+  # Ejecutar cuando se cree o actualice un Pull Request hacia main
+  pull_request:
+    branches: [main]
+
+  # Permitir ejecutar el workflow manualmente desde GitHub
+  workflow_dispatch:
+
+# Trabajos que GitHub ejecutará en la máquina virtual
+jobs:
+  rust:
+    # Nombre del trabajo en la interfaz de GitHub
+    name: rust
+
+    # Sistema operativo donde se ejecutarán las comprobaciones
+    runs-on: ubuntu-latest
+
+    # Pasos que se ejecutan en orden dentro del trabajo
+    steps:
+      # Descargar el código del repositorio en la máquina virtual
+      - uses: actions/checkout@v4
+
+      # Avisar si no existe Cargo.toml en la raíz del repositorio
+      - name: Aviso si aún no hay proyecto Rust
+        if: hashFiles('Cargo.toml') == ''
+        run: 'echo "Todavía no existe Cargo.toml, no hay nada que revisar."'
+
+      # Instalar Rust estable y las herramientas de formato y análisis
+      - name: Instalar Rust
+        if: hashFiles('Cargo.toml') != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # Reutilizar la caché para acelerar futuras ejecuciones
+      - name: Caché de dependencias
+        if: hashFiles('Cargo.toml') != ''
+        uses: Swatinem/rust-cache@v2
+
+      # Comprobar que el código tenga el formato correcto sin modificarlo
+      - name: Formato (cargo fmt)
+        if: hashFiles('Cargo.toml') != ''
+        run: cargo fmt --check
+
+      # Analizar el código y tratar las advertencias como errores
+      - name: Clippy
+        if: hashFiles('Cargo.toml') != ''
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Ejecutar las pruebas automatizadas del proyecto Rust
+      - name: Pruebas
+        if: hashFiles('Cargo.toml') != ''
+        run: cargo test
