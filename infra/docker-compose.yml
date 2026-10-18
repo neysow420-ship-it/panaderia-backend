@@ -9,7 +9,7 @@ services:
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD en .env}
 
     ports:
-      - "127.0.0.1:15984:5984"
+      - "127.0.0.1:${COUCHDB_PORT:-15984}:5984"
 
     volumes:
       - couchdb_data:/opt/couchdb/data
