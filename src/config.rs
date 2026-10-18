@@ -1,6 +1,7 @@
 use std::env;
 
 /// Configuración de la aplicación, leída una sola vez al arrancar desde el entorno (.env).
+#[expect(dead_code)]
 pub struct Config {
     /// URL base de CouchDB (ej. http://localhost:15984).
     pub couchdb_url: String,

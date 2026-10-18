@@ -34,7 +34,10 @@ async fn salud(State(estado): State<Arc<Estado>>) -> Result<Json<Value>, StatusC
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
     // CouchDB responde con JSON de bienvenida: {"couchdb":"Welcome","version":"3.3.3",...}
-    let info: Value = respuesta.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let info: Value = respuesta
+        .json()
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
     Ok(Json(json!({ "estado": "ok", "couchdb": info["version"] })))
 }
@@ -64,5 +67,7 @@ async fn main() {
         .await
         .expect("No se pudo abrir el puerto");
 
-    axum::serve(listener, app).await.expect("Error del servidor");
+    axum::serve(listener, app)
+        .await
+        .expect("Error del servidor");
 }
