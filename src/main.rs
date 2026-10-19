@@ -1,8 +1,10 @@
+mod api;
 mod config;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use api::autenticacion::{Usuario, autenticar};
+use axum::{Extension, Json, Router, extract::State, http::StatusCode, middleware, routing::get};
 use config::Config;
 use serde_json::{Value, json};
 
@@ -42,6 +44,12 @@ async fn salud(State(estado): State<Arc<Estado>>) -> Result<Json<Value>, StatusC
     Ok(Json(json!({ "estado": "ok", "couchdb": info["version"] })))
 }
 
+/// GET /api/yo
+/// Devuelve el rol del usuario que dejó el middleware de autenticación.
+async fn yo(Extension(usuario): Extension<Usuario>) -> Json<Value> {
+    Json(json!({ "rol": usuario.rol }))
+}
+
 #[tokio::main]
 async fn main() {
     // Carga el .env en las variables de entorno; si no existe (ej. en Docker) se ignora.
@@ -56,9 +64,14 @@ async fn main() {
         config,
     });
 
-    // Rutas de la API; todas cuelgan de /api para que Caddy las enrute en producción.
+    // /api/salud es pública; las rutas protegidas pasan por el middleware.
+    let protegidas = Router::new()
+        .route("/api/yo", get(yo))
+        .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
+
     let app: Router = Router::new()
         .route("/api/salud", get(salud))
+        .merge(protegidas)
         .with_state(estado);
 
     // 0.0.0.0 permite conexiones desde fuera del contenedor.

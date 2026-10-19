@@ -1,5 +1,25 @@
 use std::env;
 
+/// Modo de autenticación de la API.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModoAuth {
+    Activo,
+    Desactivado,
+}
+
+impl ModoAuth {
+    /// Convierte el texto de AUTH_MODE; rechaza cualquier otro valor.
+    fn desde_texto(texto: &str) -> Result<Self, String> {
+        match texto {
+            "activo" => Ok(Self::Activo),
+            "desactivado" => Ok(Self::Desactivado),
+            otro => Err(format!(
+                "AUTH_MODE debe ser 'activo' o 'desactivado', no '{otro}'"
+            )),
+        }
+    }
+}
+
 /// Configuración de la aplicación, leída una sola vez al arrancar desde el entorno (.env).
 #[expect(dead_code)]
 pub struct Config {
@@ -11,8 +31,8 @@ pub struct Config {
     pub couchdb_password: String,
     /// Puerto TCP en el que escucha la API.
     pub port: u16,
-    /// Modo de autenticación (ej. "desactivado" en desarrollo).
-    pub auth_mode: String,
+    /// Modo de autenticación (`activo` o `desactivado`).
+    pub auth_mode: ModoAuth,
     /// Secreto para firmar los JWT.
     pub jwt_secret: String,
 }
@@ -29,7 +49,7 @@ impl Config {
             port: requerida("PORT")?
                 .parse()
                 .map_err(|_| "PORT debe ser un número".to_string())?,
-            auth_mode: requerida("AUTH_MODE")?,
+            auth_mode: ModoAuth::desde_texto(&requerida("AUTH_MODE")?)?,
             jwt_secret: requerida("JWT_SECRET")?,
         })
     }
