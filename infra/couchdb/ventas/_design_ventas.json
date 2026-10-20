@@ -1,0 +1,10 @@
+{
+  "_id": "_design/ventas",
+  "language": "javascript",
+  "views": {
+    "ventas_por_dia_producto": {
+      "map": "function (doc) { if (doc.tipo !== 'venta') return; for (var i = 0; i < doc.lineas.length; i++) { var l = doc.lineas[i]; emit([doc.fecha, l.producto_id], [l.cantidad, l.subtotal_centavos]); } }",
+      "reduce": "_sum"
+    }
+  }
+}
