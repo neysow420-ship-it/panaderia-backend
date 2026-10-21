@@ -1,0 +1,6 @@
+{
+  "index": { "fields": ["tipo", "fecha"] },
+  "ddoc": "indices-ventas",
+  "name": "ventas-por-fecha",
+  "type": "json"
+}

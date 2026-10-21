@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod ventas;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -58,7 +59,7 @@ async fn main() {
     // Falla al arrancar si falta alguna variable, antes de aceptar peticiones.
     let config = Config::desde_env().expect("Configuración inválida");
     let puerto = config.port;
-
+    let rutas_ventas = ventas::rutas(&config).await;
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
         config,
@@ -67,6 +68,7 @@ async fn main() {
     // /api/salud es pública; las rutas protegidas pasan por el middleware.
     let protegidas = Router::new()
         .route("/api/yo", get(yo))
+        .merge(rutas_ventas)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
     let app: Router = Router::new()
