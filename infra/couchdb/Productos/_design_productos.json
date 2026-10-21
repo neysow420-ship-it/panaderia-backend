@@ -1,0 +1,9 @@
+{
+  "_id": "_design/productos",
+  "language": "javascript",
+  "views": {
+    "productos_activos": {
+      "map": "function (doc) { if (doc.tipo === 'producto' && doc.activo !== false) { emit(doc.nombre, doc.precio_centavos); } }"
+    }
+  }
+}
