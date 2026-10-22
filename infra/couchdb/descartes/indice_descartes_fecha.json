@@ -1,0 +1,10 @@
+{
+  "index": {
+    "fields": [
+      "tipo",
+      "fecha"
+    ]
+  },
+  "name": "idx_descartes_tipo_fecha",
+  "type": "json"
+}

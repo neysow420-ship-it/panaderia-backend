@@ -1,0 +1,10 @@
+{
+  "index": {
+    "fields": [
+      "fecha_vencimiento",
+      "producto_id"
+    ]
+  },
+  "name": "idx_vencimientos_fecha",
+  "type": "json"
+}
