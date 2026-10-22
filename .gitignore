@@ -1,5 +1,7 @@
-#  entorno local (NUNCA se suben)
+# entorno local (NUNCA se suben)
 *.env
+infra/couchdb/local.ini
+local.ini
 
 # Rust
 target/
