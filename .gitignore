@@ -1,5 +1,5 @@
 #  entorno local (NUNCA se suben)
-.env
+*.env
 
 # Rust
 target/

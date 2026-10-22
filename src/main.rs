@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod vencimientos;
 mod ventas;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -69,6 +70,7 @@ async fn main() {
     let protegidas = Router::new()
         .route("/api/yo", get(yo))
         .merge(rutas_ventas)
+        .route("/vencimientos", get(vencimientos::api::obtener_vencimientos_handler))
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
     let app: Router = Router::new()
