@@ -1,0 +1,12 @@
+{
+  "vigente_desde": "2026-10-13",
+  "modo_produccion": "modelo",
+  "alerta_dias": 1,
+  "costos": [
+    { "producto_id": "producto:pan-frances", "costo_unitario_centavos": 5 },
+    { "producto_id": "producto:semita", "costo_unitario_centavos": 12 },
+    { "producto_id": "producto:hojitas", "costo_unitario_centavos": 8 },
+    { "producto_id": "producto:cachos", "costo_unitario_centavos": 15 },
+    { "producto_id": "producto:donas", "costo_unitario_centavos": 18 }
+  ]
+}

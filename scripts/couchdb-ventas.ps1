@@ -1,6 +1,6 @@
 # Crea las bases y sube la vista e índice de ventas a CouchDB (Windows / PowerShell).
 # Uso (desde la raíz del repo):  .\scripts\couchdb-ventas.ps1 [-Prueba]
-#   -Prueba  además crea 2 productos de ejemplo en `catalogo` para probar POST /ventas.
+#   -Prueba  además siembra los 5 productos y sus costos para probar POST /ventas.
 # Lee COUCHDB_URL, COUCHDB_USER y COUCHDB_PASSWORD del .env.
 param([switch]$Prueba)
 $ErrorActionPreference = "Stop"
@@ -37,6 +37,5 @@ Couch PUT "panaderia/_design/ventas" ($doc | ConvertTo-Json -Depth 10) | Out-Nul
 Couch POST "panaderia/_index" (Get-Content infra/couchdb/ventas/indice_ventas_fecha.json -Raw) | Out-Null
 
 if ($Prueba) {
-    Couch PUT "catalogo/producto:pan-frances" '{"tipo":"producto","nombre":"Pan francés","precio_centavos":10,"vida_util_dias":1,"activo":true}' | Out-Null
-    Couch PUT "catalogo/producto:donas" '{"tipo":"producto","nombre":"Donas","precio_centavos":35,"vida_util_dias":2,"activo":true}' | Out-Null
+    python scripts/sembrar_catalogo.py
 }

@@ -1,41 +1,35 @@
 {
-  "vigente_desde": "2026-10-21",
+  "vigente_desde": "2026-10-13",
   "productos": [
     {
       "slug": "pan-frances",
       "nombre": "Pan francés",
-      "precio_centavos": 6,
-      "costo_unitario_centavos": 4
+      "precio_centavos": 10,
+      "vida_util_dias": 1
     },
     {
       "slug": "semita",
       "nombre": "Semita",
       "precio_centavos": 25,
-      "costo_unitario_centavos": 12
+      "vida_util_dias": 2
     },
     {
       "slug": "hojitas",
       "nombre": "Hojitas",
       "precio_centavos": 15,
-      "costo_unitario_centavos": 8
+      "vida_util_dias": 2
     },
     {
       "slug": "cachos",
       "nombre": "Cachos",
       "precio_centavos": 30,
-      "costo_unitario_centavos": 15
+      "vida_util_dias": 2
     },
     {
       "slug": "donas",
       "nombre": "Donas",
       "precio_centavos": 35,
-      "costo_unitario_centavos": 16
-    },
-    {
-      "slug": "baguette",
-      "nombre": "Baguette",
-      "precio_centavos": 75,
-      "costo_unitario_centavos": 33
+      "vida_util_dias": 2
     }
   ]
 }

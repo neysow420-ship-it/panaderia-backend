@@ -1,0 +1,713 @@
+openapi: 3.0.3
+info:
+  title: API de ventas y merma — panadería
+  version: 1.0.0
+  description: |
+    Contrato canónico de la API (ítem 3.5). El dinero siempre va en centavos
+    enteros y las fechas de negocio en `America/El_Salvador` (UTC-6).
+    Los errores usan la forma `{ codigo, errores: [{ campo, motivo }] }`.
+servers:
+  - url: http://localhost:3000
+    description: Entorno local
+tags:
+  - name: salud
+    description: Disponibilidad de la API y de CouchDB.
+  - name: auth
+    description: Inicio de sesión y emisión del JWT.
+  - name: ventas
+    description: Registro idempotente de ventas.
+  - name: produccion
+    description: Registro de hornadas.
+  - name: cierre
+    description: Cierre diario y cálculo de la merma.
+  - name: reportes
+    description: Consultas de ventas y merma por rango de fechas.
+security:
+  - bearerAuth: []
+paths:
+  /salud:
+    get:
+      tags: [salud]
+      summary: Estado de la API y de CouchDB
+      operationId: obtenerSalud
+      security: []
+      responses:
+        '200':
+          description: API y CouchDB disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Salud'
+        '503':
+          description: CouchDB no responde o rechazó el acceso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Inicia sesión y devuelve un JWT
+      operationId: iniciarSesion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudLogin'
+      responses:
+        '200':
+          description: Credenciales válidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLogin'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+  /ventas:
+    post:
+      tags: [ventas]
+      summary: Registra una venta (idempotente por ULID)
+      operationId: registrarVenta
+      description: |
+        El cliente envía solo el ULID, la caja, la hora local y las líneas.
+        Rust calcula precios, subtotales y total desde el catálogo. La venta de
+        un día ya cerrado se asigna al primer día abierto y conserva
+        `fecha_original`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudVenta'
+      responses:
+        '201':
+          description: Venta nueva guardada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaVenta'
+        '200':
+          description: Reenvío con el mismo ULID y la misma huella
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaVenta'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/Prohibido'
+        '409':
+          description: Mismo ULID con contenido distinto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+  /hornadas:
+    post:
+      tags: [produccion]
+      summary: Registra una hornada (solo encargado, con conexión)
+      operationId: registrarHornada
+      description: |
+        El ULID se genera al abrir el formulario y se reutiliza en los
+        reintentos. Mismo ULID y misma huella devuelve `200`; otro contenido
+        devuelve `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudHornada'
+      responses:
+        '201':
+          description: Hornada nueva guardada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHornada'
+        '200':
+          description: Reenvío idéntico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHornada'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/Prohibido'
+        '409':
+          description: Mismo ULID con contenido distinto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+  /cierre:
+    post:
+      tags: [cierre]
+      summary: Cierra el día y calcula la merma
+      operationId: cerrarDia
+      description: |
+        El servidor recalcula producidas y vendidas desde los registros
+        oficiales. El cliente solo declara las descartadas. Una diferencia
+        negativa se rechaza con `422`; una positiva exige
+        `confirmo_diferencia: true`. El cierre es inmutable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCierre'
+      responses:
+        '201':
+          description: Cierre nuevo guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCierre'
+        '200':
+          description: Reenvío idéntico del cierre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCierre'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/Prohibido'
+        '409':
+          description: El día ya tiene un cierre con otro contenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+  /reportes/ventas:
+    get:
+      tags: [reportes]
+      summary: Ventas por día y producto
+      operationId: reporteVentas
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+      responses:
+        '200':
+          description: Reporte del rango solicitado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteVentas'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/Prohibido'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+  /merma:
+    get:
+      tags: [reportes]
+      summary: Merma por producto, con el día en curso como vista previa
+      operationId: reporteMerma
+      description: |
+        Si el rango incluye el día actual, ese día aparece con
+        `cerrado: false` y sus valores son una vista previa del cierre.
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+      responses:
+        '200':
+          description: Merma del rango solicitado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteMerma'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          $ref: '#/components/responses/Prohibido'
+        '422':
+          $ref: '#/components/responses/Validacion'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Desde:
+      name: desde
+      in: query
+      required: true
+      description: Fecha inicial de negocio (`AAAA-MM-DD`).
+      schema:
+        type: string
+        format: date
+        example: '2026-10-01'
+    Hasta:
+      name: hasta
+      in: query
+      required: true
+      description: Fecha final de negocio; máximo 31 días desde `desde`.
+      schema:
+        type: string
+        format: date
+        example: '2026-10-31'
+  responses:
+    NoAutorizado:
+      description: Falta el token, expiró o las credenciales son inválidas
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Prohibido:
+      description: El rol del usuario no permite la operación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Validacion:
+      description: Datos inválidos o regla de negocio incumplida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoDisponible:
+      description: CouchDB no responde
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Salud:
+      type: object
+      required: [estado, couchdb]
+      properties:
+        estado:
+          type: string
+          enum: [ok]
+        couchdb:
+          type: string
+          nullable: true
+          example: 3.3.3
+    ErrorCampo:
+      type: object
+      required: [campo, motivo]
+      properties:
+        campo:
+          type: string
+          example: lineas[0].cantidad
+        motivo:
+          type: string
+          example: debe estar entre 1 y 1000
+    Error:
+      type: object
+      required: [codigo, errores]
+      properties:
+        codigo:
+          type: string
+          example: validacion
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+    SolicitudLogin:
+      type: object
+      required: [usuario, contrasena]
+      properties:
+        usuario:
+          type: string
+          example: cajero1
+        contrasena:
+          type: string
+          format: password
+    UsuarioSesion:
+      type: object
+      required: [nombre, rol]
+      properties:
+        nombre:
+          type: string
+        rol:
+          type: string
+          enum: [cajero, encargado]
+    RespuestaLogin:
+      type: object
+      required: [token, tipo, expira_en, usuario]
+      properties:
+        token:
+          type: string
+        tipo:
+          type: string
+          enum: [Bearer]
+        expira_en:
+          type: string
+          format: date-time
+        usuario:
+          $ref: '#/components/schemas/UsuarioSesion'
+    LineaSolicitud:
+      type: object
+      required: [producto_id, cantidad]
+      properties:
+        producto_id:
+          type: string
+          example: producto:pan-frances
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 1000
+    SolicitudVenta:
+      type: object
+      required: [operacion_id, dispositivo_id, creado_local, lineas]
+      properties:
+        operacion_id:
+          type: string
+          description: ULID de 26 caracteres generado por el cliente.
+          example: 01J9ZK3M8Q4V7T2R5N6X8B0C1D
+        dispositivo_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          example: caja-1
+        creado_local:
+          type: string
+          format: date-time
+          example: '2026-10-13T08:15:32-06:00'
+        lineas:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/LineaSolicitud'
+    LineaVenta:
+      type: object
+      required: [producto_id, cantidad, precio_centavos, subtotal_centavos]
+      properties:
+        producto_id:
+          type: string
+        cantidad:
+          type: integer
+        precio_centavos:
+          type: integer
+          description: Precio congelado al momento de la venta.
+        subtotal_centavos:
+          type: integer
+    Venta:
+      type: object
+      required:
+        [ _id, tipo, operacion_id, huella, usuario, dispositivo_id, creado_local,
+          recibido_servidor, fecha, lineas, total_centavos ]
+      properties:
+        _id:
+          type: string
+          example: venta:01J9ZK3M8Q4V7T2R5N6X8B0C1D
+        tipo:
+          type: string
+          enum: [venta]
+        operacion_id:
+          type: string
+        huella:
+          type: string
+          example: 'sha256:6f1c...'
+        usuario:
+          type: string
+        dispositivo_id:
+          type: string
+        creado_local:
+          type: string
+          format: date-time
+        recibido_servidor:
+          type: string
+          format: date-time
+        fecha:
+          type: string
+          format: date
+        fecha_original:
+          type: string
+          format: date
+          description: Solo en ventas tardías de un día ya cerrado.
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaVenta'
+        total_centavos:
+          type: integer
+          minimum: 0
+    RespuestaVenta:
+      type: object
+      required: [ya_procesada, venta]
+      properties:
+        ya_procesada:
+          type: boolean
+        venta:
+          $ref: '#/components/schemas/Venta'
+    SolicitudHornada:
+      type: object
+      required: [operacion_id, producto_id, unidades, creado_local]
+      additionalProperties: false
+      properties:
+        operacion_id:
+          type: string
+          description: ULID generado al abrir el formulario.
+        producto_id:
+          type: string
+        unidades:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        creado_local:
+          type: string
+          format: date-time
+        fecha_vencimiento:
+          type: string
+          format: date
+          description: Opcional; por defecto `fecha + vida_util_dias`.
+    Hornada:
+      type: object
+      required:
+        [ _id, tipo, huella, usuario, creado_en, fecha, producto_id, unidades,
+          fecha_vencimiento ]
+      properties:
+        _id:
+          type: string
+        tipo:
+          type: string
+          enum: [hornada]
+        huella:
+          type: string
+        usuario:
+          type: string
+        creado_en:
+          type: string
+          format: date-time
+        fecha:
+          type: string
+          format: date
+        producto_id:
+          type: string
+        unidades:
+          type: integer
+        fecha_vencimiento:
+          type: string
+          format: date
+        pronostico_id:
+          type: string
+    RespuestaHornada:
+      type: object
+      required: [ya_procesada, hornada]
+      properties:
+        ya_procesada:
+          type: boolean
+        hornada:
+          $ref: '#/components/schemas/Hornada'
+    DescarteCierre:
+      type: object
+      required: [producto_id, unidades]
+      properties:
+        producto_id:
+          type: string
+        unidades:
+          type: integer
+          minimum: 0
+          maximum: 100000
+    SolicitudCierre:
+      type: object
+      required: [fecha, descartadas, confirmo_diferencia]
+      additionalProperties: false
+      properties:
+        fecha:
+          type: string
+          format: date
+        descartadas:
+          type: array
+          items:
+            $ref: '#/components/schemas/DescarteCierre'
+        confirmo_diferencia:
+          type: boolean
+          description: Obligatorio en `true` si alguna diferencia es positiva.
+    CierrePorProducto:
+      type: object
+      required:
+        [ producto_id, existencia_inicial, producidas, vendidas, descartadas,
+          diferencia, existencia_final, lotes_finales, costo_aplicado_centavos,
+          merma_centavos, merma_bp ]
+      properties:
+        producto_id:
+          type: string
+        existencia_inicial:
+          type: integer
+          description: 0 en v1; cada día es independiente.
+        producidas:
+          type: integer
+        vendidas:
+          type: integer
+        descartadas:
+          type: integer
+        diferencia:
+          type: integer
+          description: producidas − vendidas − descartadas
+        existencia_final:
+          type: integer
+          description: Igual a `diferencia`; no se arrastra al día siguiente.
+        lotes_finales:
+          type: array
+          description: Vacío en v1; reservado para la extensión P2.
+          items:
+            type: object
+        costo_aplicado_centavos:
+          type: integer
+        merma_centavos:
+          type: integer
+        merma_bp:
+          type: integer
+    Cierre:
+      type: object
+      required:
+        [ _id, tipo, fecha, responsable, cerrado_en, modo_produccion,
+          confirmo_diferencia, huella, por_producto, total_merma_centavos ]
+      properties:
+        _id:
+          type: string
+          example: cierre:2026-10-13
+        tipo:
+          type: string
+          enum: [cierre]
+        fecha:
+          type: string
+          format: date
+        responsable:
+          type: string
+        cerrado_en:
+          type: string
+          format: date-time
+        modo_produccion:
+          type: string
+          enum: [modelo, lotes]
+        confirmo_diferencia:
+          type: boolean
+        huella:
+          type: string
+        por_producto:
+          type: array
+          items:
+            $ref: '#/components/schemas/CierrePorProducto'
+        total_merma_centavos:
+          type: integer
+    RespuestaCierre:
+      type: object
+      required: [ya_procesada, cierre]
+      properties:
+        ya_procesada:
+          type: boolean
+        cierre:
+          $ref: '#/components/schemas/Cierre'
+    VentaPorProducto:
+      type: object
+      required: [producto_id, unidades, total_centavos]
+      properties:
+        producto_id:
+          type: string
+        unidades:
+          type: integer
+        total_centavos:
+          type: integer
+    DiaVentas:
+      type: object
+      required: [fecha, por_producto]
+      properties:
+        fecha:
+          type: string
+          format: date
+        por_producto:
+          type: array
+          items:
+            $ref: '#/components/schemas/VentaPorProducto'
+    ReporteVentas:
+      type: object
+      required: [desde, hasta, dias, total_centavos]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        dias:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiaVentas'
+        total_centavos:
+          type: integer
+    MermaPorProducto:
+      type: object
+      required:
+        [ producto_id, producidas, vendidas, descartadas, diferencia,
+          merma_centavos ]
+      properties:
+        producto_id:
+          type: string
+        producidas:
+          type: integer
+        vendidas:
+          type: integer
+        descartadas:
+          type: integer
+        diferencia:
+          type: integer
+        merma_centavos:
+          type: integer
+        costo_aplicado_centavos:
+          type: integer
+          description: Costo usado para valorizar la merma.
+    DiaMerma:
+      type: object
+      required: [fecha, cerrado, por_producto, total_merma_centavos]
+      properties:
+        fecha:
+          type: string
+          format: date
+        cerrado:
+          type: boolean
+          description: false para el día en curso (vista previa).
+        por_producto:
+          type: array
+          items:
+            $ref: '#/components/schemas/MermaPorProducto'
+        total_merma_centavos:
+          type: integer
+    ReporteMerma:
+      type: object
+      required: [desde, hasta, actualizado_en, dias, total_merma_centavos]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        actualizado_en:
+          type: string
+          format: date-time
+        dias:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiaMerma'
+        total_merma_centavos:
+          type: integer

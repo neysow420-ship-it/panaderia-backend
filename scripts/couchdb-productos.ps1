@@ -1,6 +1,6 @@
 # Crea las bases y sube la vista de productos a CouchDB (Windows / PowerShell).
 # Uso (desde la raíz del repo):  .\scripts\couchdb-productos.ps1 [-Prueba]
-#   -Prueba  además crea 2 productos de ejemplo en `catalogo` y el documento `config:vigente`
+#   -Prueba  además siembra los 5 productos y el documento `config:vigente`
 #            en `panaderia`, para probar /productos y /config.
 # Lee COUCHDB_URL, COUCHDB_USER y COUCHDB_PASSWORD del .env.
 param([switch]$Prueba)
@@ -37,7 +37,5 @@ try {
 Couch PUT "catalogo/_design/productos" ($doc | ConvertTo-Json -Depth 10) | Out-Null
 
 if ($Prueba) {
-    Couch PUT "catalogo/producto:pan-frances" '{"tipo":"producto","nombre":"Pan francés","precio_centavos":10,"vida_util_dias":1,"activo":true}' | Out-Null
-    Couch PUT "catalogo/producto:donas" '{"tipo":"producto","nombre":"Donas","precio_centavos":35,"vida_util_dias":2,"activo":true}' | Out-Null
-    Couch PUT "panaderia/config:vigente" '{"tipo":"config","vigente_desde":"2026-10-13","modo_produccion":"modelo","alerta_dias":1,"costos":[{"producto_id":"producto:pan-frances","costo_unitario_centavos":5},{"producto_id":"producto:donas","costo_unitario_centavos":18}]}' | Out-Null
+    python scripts/sembrar_catalogo.py
 }

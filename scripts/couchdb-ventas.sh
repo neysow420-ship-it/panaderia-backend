@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Crea las bases y sube la vista e índice de ventas a CouchDB.
 # Uso (desde la raíz del repo):  ./scripts/couchdb-ventas.sh [--prueba]
-#   --prueba  además crea 2 productos de ejemplo en `catalogo` para probar POST /ventas.
+#   --prueba  además siembra los 5 productos y sus costos para probar POST /ventas.
 # Lee COUCHDB_URL, COUCHDB_USER y COUCHDB_PASSWORD del .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -28,7 +28,6 @@ echo "Índice Mango tipo+fecha:"
 C -X POST "$COUCHDB_URL/panaderia/_index" -d @infra/couchdb/ventas/indice_ventas_fecha.json
 
 if [ "${1:-}" = "--prueba" ]; then
-  echo "Productos de prueba:"
-  C -X PUT "$COUCHDB_URL/catalogo/producto:pan-frances" -d '{"tipo":"producto","nombre":"Pan francés","precio_centavos":10,"vida_util_dias":1,"activo":true}'
-  C -X PUT "$COUCHDB_URL/catalogo/producto:donas" -d '{"tipo":"producto","nombre":"Donas","precio_centavos":35,"vida_util_dias":2,"activo":true}'
+  echo "Productos y costos de prueba:"
+  python3 scripts/sembrar_catalogo.py
 fi

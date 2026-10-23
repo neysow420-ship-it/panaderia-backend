@@ -1,14 +1,14 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::json;
 
-use crate::descartes::{dominio::Descarte, aplicacion};
+use crate::descartes::{
+    aplicacion::{self, ErrorDescarte},
+    dominio::Descarte,
+};
 
-/// Estructura para recibir el JSON desde el cliente (frontend)
+/// Estructura para recibir el JSON desde el cliente (frontend).
 #[derive(Deserialize)]
 pub struct CrearDescarteDto {
     pub fecha: String,
@@ -20,22 +20,23 @@ pub struct CrearDescarteDto {
     pub creado_en: String,
 }
 
-/// Estado compartido que se inyecta en las rutas (URL de CouchDB y cliente HTTP)
+/// Estado compartido que se inyecta en las rutas (CouchDB y credenciales).
 #[derive(Clone)]
 pub struct AppState {
     pub couchdb_url: String,
+    pub couchdb_user: String,
+    pub couchdb_password: String,
     pub http_client: Client,
 }
 
-/// Endpoint HTTP: POST /descartes
+/// Endpoint HTTP: `POST /descartes`.
 pub async fn post_descarte(
     State(state): State<AppState>,
     Json(payload): Json<CrearDescarteDto>,
-) -> Result<(StatusCode, Json<Descarte>), (StatusCode, String)> {
-    
-    // Mapeamos el DTO recibido hacia la entidad del Dominio
+) -> Result<(StatusCode, Json<Descarte>), (StatusCode, Json<serde_json::Value>)> {
+    // Mapeamos el DTO recibido hacia la entidad del dominio.
     let nuevo_descarte = Descarte {
-        _id: String::new(), // Se generará en la capa de aplicación
+        _id: String::new(), // Se genera en la capa de aplicación.
         tipo: "descarte".to_string(),
         fecha: payload.fecha,
         lote_id: payload.lote_id,
@@ -46,9 +47,29 @@ pub async fn post_descarte(
         creado_en: payload.creado_en,
     };
 
-    // Ejecutamos el caso de uso
-    match aplicacion::registrar_descarte(&state.http_client, &state.couchdb_url, nuevo_descarte).await {
+    match aplicacion::registrar_descarte(
+        &state.http_client,
+        &state.couchdb_url,
+        &state.couchdb_user,
+        &state.couchdb_password,
+        nuevo_descarte,
+    )
+    .await
+    {
         Ok(descarte_guardado) => Ok((StatusCode::CREATED, Json(descarte_guardado))),
-        Err(err) => Err((StatusCode::UNPROCESSABLE_ENTITY, err)),
+        Err(ErrorDescarte::Validacion(motivo)) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "codigo": "validacion",
+                "errores": [{ "campo": "descarte", "motivo": motivo }]
+            })),
+        )),
+        Err(ErrorDescarte::NoDisponible(detalle)) => {
+            eprintln!("POST /descartes: base no disponible: {detalle}");
+            Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "codigo": "no_disponible", "errores": [] })),
+            ))
+        }
     }
 }

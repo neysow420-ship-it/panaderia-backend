@@ -1,8 +1,9 @@
 mod api;
 mod config;
+mod descartes;
+mod productos;
 mod vencimientos;
 mod ventas;
-mod descartes;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -21,10 +22,22 @@ struct Estado {
     config: Config,
 }
 
-/// GET /api/salud
+/// GET /salud
 /// Comprueba que la API puede hablar con CouchDB con las credenciales configuradas.
-/// Responde 200 con la versión de CouchDB, o 502 si CouchDB no responde o rechaza el acceso.
-async fn salud(State(estado): State<Arc<Estado>>) -> Result<Json<Value>, StatusCode> {
+/// Responde 200 con la versión de CouchDB, o 503 si CouchDB no responde.
+async fn salud(
+    State(estado): State<Arc<Estado>>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let fallo = || {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "codigo": "dependencia_no_disponible",
+                "errores": [{ "campo": "couchdb", "motivo": "CouchDB no responde o rechazó el acceso" }]
+            })),
+        )
+    };
+
     // Petición autenticada a la raíz de CouchDB.
     let respuesta = estado
         .cliente
@@ -37,13 +50,10 @@ async fn salud(State(estado): State<Arc<Estado>>) -> Result<Json<Value>, StatusC
         .await
         // Convierte respuestas 4xx/5xx de CouchDB en error.
         .and_then(|r| r.error_for_status())
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| fallo())?;
 
     // CouchDB responde con JSON de bienvenida: {"couchdb":"Welcome","version":"3.3.3",...}
-    let info: Value = respuesta
-        .json()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let info: Value = respuesta.json().await.map_err(|_| fallo())?;
 
     Ok(Json(json!({ "estado": "ok", "couchdb": info["version"] })))
 }
@@ -63,21 +73,25 @@ async fn main() {
     let config = Config::desde_env().expect("Configuración inválida");
     let puerto = config.port;
     let rutas_ventas = ventas::rutas(&config).await;
+    let rutas_productos = productos::rutas(&config);
+    let rutas_descartes = descartes::rutas(&config);
+    let rutas_vencimientos = vencimientos::rutas(&config);
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
         config,
     });
 
-    // /api/salud es pública; las rutas protegidas pasan por el middleware.
+    // /salud es pública; las rutas protegidas pasan por el middleware.
     let protegidas = Router::new()
         .route("/api/yo", get(yo))
         .merge(rutas_ventas)
-        .route("/vencimientos", get(vencimientos::api::obtener_vencimientos_handler))
-        .route("/descartes", post(descartes::api::post_descarte))
+        .merge(rutas_productos)
+        .merge(rutas_descartes)
+        .merge(rutas_vencimientos)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
     let app: Router = Router::new()
-        .route("/api/salud", get(salud))
+        .route("/salud", get(salud))
         .merge(protegidas)
         .with_state(estado);
 

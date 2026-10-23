@@ -58,4 +58,70 @@ Caso rechazado: producidas 150, vendidas 140, descartadas 20 da `diferencia = �
 
 ## Ventas de un día ya cerrado
 
-(Se completa en el ítem 3.4.)
+Una venta hecha sin conexión puede llegar después de que su día de negocio ya
+se cerró. **No se rechaza**: se acepta y se contabiliza en un día abierto, sin
+alterar el cierre ya guardado.
+
+Reglas:
+
+1. La **fecha de negocio original** se calcula con `creado_local` convertido a
+   `America/El_Salvador`. Es el día en que realmente se hizo la venta.
+2. Si `cierre:{fecha_original}` **no existe**, la venta se guarda con
+   `fecha = fecha_original` y sin `fecha_original`.
+3. Si el día original **ya está cerrado**, el servidor busca el primer día
+   **sin cierre** empezando por `max(fecha_original, hoy)` y avanza como máximo
+   7 días.
+   - `fecha` = día abierto encontrado (el día al que cuenta la venta).
+   - `fecha_original` = día real en que se hizo la venta.
+   - Si no hay ningún día abierto en esos 7 días, se responde `422` con
+     `creado_local` y el motivo `no hay un día abierto cercano`.
+4. La venta conserva su ULID y su `huella`: la idempotencia no cambia por ser
+   tardía. Un reenvío devuelve la misma venta con `200`.
+5. Los reportes agrupan por `fecha` (el día al que cuenta la venta). El campo
+   `fecha_original` queda disponible para auditar cuántas ventas llegaron tarde.
+6. El cierre de un día **no se recalcula** cuando llega una venta tardía: por
+   eso la venta va al día abierto. Esto mantiene la inmutabilidad del cierre.
+
+Ejemplo: venta hecha el 2026-10-12 a las 19:50, enviada el 2026-10-13 a las
+08:10. El cierre del 12 ya existe.
+
+```json
+{
+  "creado_local": "2026-10-12T19:50:00-06:00",
+  "fecha": "2026-10-13",
+  "fecha_original": "2026-10-12"
+}
+```
+
+La venta cuenta para el 13 y no cambia el cierre del 12.
+
+## Zona horaria
+
+- La zona del negocio es **`America/El_Salvador` (UTC-6, sin horario de
+  verano)**.
+- El cliente envía `creado_local` en RFC 3339 **con desfase obligatorio**. El
+  servidor no adivina la zona: si falta el desfase, responde `422`.
+- El servidor convierte `creado_local` y su propia hora a UTC-6 antes de
+  calcular `fecha` y `fecha_original`.
+- Ejemplo: `2026-10-14T01:30:00Z` son las 19:30 del 13 en El Salvador, así que
+  pertenece al día de negocio `2026-10-13`.
+- Los instantes que escribe el servidor (`recibido_servidor`, `cerrado_en`)
+  usan el desfase `-06:00`.
+- El contenedor y la base pueden estar en UTC; **nunca** se usa la zona local
+  del servidor para decidir el día de negocio.
+
+## Relación con el documento estándar (ODT)
+
+El ODT muestra un cierre con `existencia_inicial: 20` y `lotes_finales` con
+unidades. Este ADR sigue el checklist 3.3: **cada día empieza en 0** y no hay
+arrastre de existencias en v1. Por compatibilidad, el documento conserva los
+campos:
+
+- `existencia_inicial`: siempre `0` en v1.
+- `existencia_final`: igual a `diferencia` (informativo; no se traslada).
+- `lotes_finales`: siempre `[]` en v1; queda reservado para la extensión P2 de
+  lotes y recetas.
+
+Si en el futuro se adopta el modo de lotes, la fórmula pasa a
+`existencia_inicial + producidas − vendidas − descartadas − existencia_final`
+y se versiona el contrato.

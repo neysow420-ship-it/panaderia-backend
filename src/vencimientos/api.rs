@@ -1,32 +1,40 @@
-///Controlador Web de Axum (GET /vencimientos). Retorna la respuesta HTTP en JSON respetando la estructura exigida por el contrato.
+//! Controlador web de `GET /vencimientos`.
 
-use axum::{response::IntoResponse, Json, http::StatusCode};
-use serde_json::json;
+use std::sync::Arc;
 
-/// Handler HTTP de Axum que atiende las peticiones GET en la ruta /vencimientos.
-pub async fn obtener_vencimientos_handler() -> impl IntoResponse {
-    // Estructura canónica de respuesta según las especificaciones del contrato de datos de la Fase 3
-    let respuesta = json!({
-        "fecha": "2026-10-13",
-        "actualizado_en": "2026-10-13T15:02:11-06:00",
-        "resumen": {
-            "vencido": 0,
-            "vence_hoy": 0,
-            "por_vencer": 42,
-            "vigente": 0
-        },
-        "lotes": [
-            {
-                "lote_id": "hornada:01J9ZK5A2B3C4D5E6F7G8H9J0K",
-                "producto_id": "producto:pan-frances",
-                "unidades": 42,
-                "fecha_vencimiento": "2026-10-14",
-                "dias_restantes": 1,
-                "estado": "por_vencer"
-            }
-        ]
-    });
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use serde::Deserialize;
 
-    // Retorna código HTTP 200 OK y el cuerpo JSON
-    (StatusCode::OK, Json(respuesta))
+use super::EstadoVencimientos;
+
+/// Fecha opcional de consulta (`AAAA-MM-DD`). Por defecto, hoy en El Salvador.
+#[derive(Deserialize)]
+pub struct FiltroFecha {
+    pub fecha: Option<String>,
+}
+
+/// Handler HTTP que arma el reporte de vencimientos desde CouchDB.
+pub async fn obtener_vencimientos_handler(
+    State(estado): State<Arc<EstadoVencimientos>>,
+    Query(filtro): Query<FiltroFecha>,
+) -> Response {
+    match estado.caso.generar_reporte_vencimientos(filtro.fecha).await {
+        Ok(reporte) => (StatusCode::OK, Json(reporte)).into_response(),
+        Err(detalle) => {
+            eprintln!("GET /vencimientos: base no disponible: {detalle}");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "codigo": "no_disponible",
+                    "errores": []
+                })),
+            )
+                .into_response()
+        }
+    }
 }

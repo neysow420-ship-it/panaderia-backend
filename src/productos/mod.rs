@@ -35,10 +35,7 @@ mod dominio;
 
 use std::sync::Arc;
 
-use axum::{
-    Router,
-    routing::get,
-};
+use axum::{Router, routing::get};
 
 // Importado de la configuración general (no se modifica, solo se usa).
 use crate::config::Config;

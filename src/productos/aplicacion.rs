@@ -23,8 +23,8 @@ use std::future::Future;
 use serde_json::Map;
 
 use super::dominio::{
-    ConfigVigente, DatosProducto, ErrorCampo, Producto, SolicitudConfig,
-    SolicitudCrearProducto, construir_config, construir_producto, id_producto, validar_slug,
+    ConfigVigente, DatosProducto, ErrorCampo, Producto, SolicitudConfig, SolicitudCrearProducto,
+    construir_config, construir_producto, id_producto, validar_slug,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -281,7 +281,10 @@ mod pruebas {
             Ok(())
         }
         async fn actualizar_producto(&self, p: &Producto) -> Result<(), ErrorRepositorio> {
-            self.productos.lock().unwrap().insert(p.id.clone(), p.clone());
+            self.productos
+                .lock()
+                .unwrap()
+                .insert(p.id.clone(), p.clone());
             Ok(())
         }
         async fn obtener_config(&self) -> Result<Option<ConfigVigente>, ErrorRepositorio> {
@@ -337,7 +340,9 @@ mod pruebas {
     #[tokio::test]
     async fn slug_repetido_es_ya_existe() {
         let repo = Memoria::default();
-        crear_producto(&repo, &crear("donas", "Donas", 35)).await.unwrap();
+        crear_producto(&repo, &crear("donas", "Donas", 35))
+            .await
+            .unwrap();
         let r = crear_producto(&repo, &crear("donas", "Donas 2", 40)).await;
         assert_eq!(r, Err(ErrorCatalogo::YaExiste));
     }
@@ -392,7 +397,9 @@ mod pruebas {
     #[tokio::test]
     async fn lista_ordenado_y_filtra_inactivos() {
         let repo = Memoria::default();
-        crear_producto(&repo, &crear("donas", "Donas", 35)).await.unwrap();
+        crear_producto(&repo, &crear("donas", "Donas", 35))
+            .await
+            .unwrap();
         crear_producto(&repo, &crear("pan-frances", "Pan francés", 10))
             .await
             .unwrap();
@@ -410,7 +417,10 @@ mod pruebas {
     #[tokio::test]
     async fn config_sin_crear_es_404() {
         let repo = Memoria::default();
-        assert_eq!(obtener_config(&repo).await, Err(ErrorCatalogo::NoEncontrado));
+        assert_eq!(
+            obtener_config(&repo).await,
+            Err(ErrorCatalogo::NoEncontrado)
+        );
     }
 
     /// Un costo de un producto que no existe en el catálogo se rechaza.

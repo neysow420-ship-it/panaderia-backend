@@ -156,7 +156,11 @@ fn exito<T: Serialize>(codigo: StatusCode, valor: T) -> Response {
 /// Respuesta de error con la forma del contrato:
 /// `{ "codigo": "...", "errores": [ { "campo": "...", "motivo": "..." } ] }`.
 fn error(codigo: StatusCode, nombre: &str, errores: Vec<ErrorCampo>) -> Response {
-    (codigo, Json(json!({ "codigo": nombre, "errores": errores }))).into_response()
+    (
+        codigo,
+        Json(json!({ "codigo": nombre, "errores": errores })),
+    )
+        .into_response()
 }
 
 /// El JSON no tiene la forma esperada → 422 con el motivo.
