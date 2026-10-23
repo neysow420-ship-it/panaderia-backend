@@ -1,0 +1,6 @@
+panaderia-api.duckdns.org {
+    reverse_proxy api:3000
+}
+panaderia-db.duckdns.org {
+    reverse_proxy couchdb:5984
+}

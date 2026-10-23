@@ -24,3 +24,23 @@ services:
 
 volumes:
   couchdb_data:
+    api:
+    build: ..                     # usa el Dockerfile de la raíz del repo
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      COUCHDB_URL: http://couchdb:5984   # dentro de Docker, la API ve a CouchDB por su nombre
+      PORT: "3000"
+    depends_on:
+      couchdb:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
