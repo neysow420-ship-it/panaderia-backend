@@ -22,6 +22,8 @@ pub async fn guardar_descarte(
     } else {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        Err(format!("Error al guardar descarte en CouchDB [{status}]: {body}"))
+        Err(format!(
+            "Error al guardar descarte en CouchDB [{status}]: {body}"
+        ))
     }
 }

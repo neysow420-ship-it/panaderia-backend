@@ -1,12 +1,8 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use crate::descartes::{dominio::Descarte, aplicacion};
+use crate::descartes::{aplicacion, dominio::Descarte};
 
 /// Estructura para recibir el JSON desde el cliente (frontend)
 #[derive(Deserialize)]
@@ -32,7 +28,6 @@ pub async fn post_descarte(
     State(state): State<AppState>,
     Json(payload): Json<CrearDescarteDto>,
 ) -> Result<(StatusCode, Json<Descarte>), (StatusCode, String)> {
-    
     // Mapeamos el DTO recibido hacia la entidad del Dominio
     let nuevo_descarte = Descarte {
         _id: String::new(), // Se generará en la capa de aplicación
@@ -47,7 +42,9 @@ pub async fn post_descarte(
     };
 
     // Ejecutamos el caso de uso
-    match aplicacion::registrar_descarte(&state.http_client, &state.couchdb_url, nuevo_descarte).await {
+    match aplicacion::registrar_descarte(&state.http_client, &state.couchdb_url, nuevo_descarte)
+        .await
+    {
         Ok(descarte_guardado) => Ok((StatusCode::CREATED, Json(descarte_guardado))),
         Err(err) => Err((StatusCode::UNPROCESSABLE_ENTITY, err)),
     }

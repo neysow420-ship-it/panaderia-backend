@@ -1,8 +1,8 @@
 mod api;
 mod config;
+mod descartes;
 mod vencimientos;
 mod ventas;
-mod descartes;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -63,6 +63,8 @@ async fn main() {
     let config = Config::desde_env().expect("Configuración inválida");
     let puerto = config.port;
     let rutas_ventas = ventas::rutas(&config).await;
+    // Construimos el router de descartes antes de mover config al estado general.
+    let rutas_descartes = descartes::rutas(&config);
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
         config,
@@ -72,8 +74,11 @@ async fn main() {
     let protegidas = Router::new()
         .route("/api/yo", get(yo))
         .merge(rutas_ventas)
-        .route("/vencimientos", get(vencimientos::api::obtener_vencimientos_handler))
-        .route("/descartes", post(descartes::api::post_descarte))
+        .route(
+            "/vencimientos",
+            get(vencimientos::api::obtener_vencimientos_handler),
+        )
+        .merge(rutas_descartes)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
     let app: Router = Router::new()

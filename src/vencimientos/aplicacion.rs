@@ -1,8 +1,6 @@
-///Caso de uso. Procesa las hornadas traídas desde CouchDB, invoca la lógica de dominio para evaluar cada lote y genera el resumen acumulado.
-
-
-use super::dominio::{LoteVencimiento, ReporteVencimientos, ResumenVencimiento};
 use super::couchdb::VencimientosCouchRepository;
+///Caso de uso. Procesa las hornadas traídas desde CouchDB, invoca la lógica de dominio para evaluar cada lote y genera el resumen acumulado.
+use super::dominio::{LoteVencimiento, ReporteVencimientos, ResumenVencimiento};
 use chrono::Local;
 
 /// Caso de uso de la lógica de aplicación para la gestión de vencimientos.
@@ -17,7 +15,10 @@ impl VencimientoCasoUso {
     }
 
     /// Genera el reporte consolidado calculando los estados y sumando las unidades por categoría.
-    pub async fn generar_reporte_vencimientos(&self, fecha_consulta: Option<String>) -> Result<ReporteVencimientos, String> {
+    pub async fn generar_reporte_vencimientos(
+        &self,
+        fecha_consulta: Option<String>,
+    ) -> Result<ReporteVencimientos, String> {
         let now = Local::now();
         // Si no se provee una fecha específica de consulta, se toma la fecha actual local
         let fecha_actual = fecha_consulta.unwrap_or_else(|| now.format("%Y-%m-%d").to_string());
@@ -47,7 +48,8 @@ impl VencimientoCasoUso {
             }
 
             // 3. Calculamos días restantes y estado llamando a la función de dominio
-            let (dias_restantes, estado) = ReporteVencimientos::calcular_estado_lote(&fecha_vencimiento, &fecha_actual);
+            let (dias_restantes, estado) =
+                ReporteVencimientos::calcular_estado_lote(&fecha_vencimiento, &fecha_actual);
 
             // 4. Sumamos las unidades al resumen según el estado determinado
             match estado.as_str() {

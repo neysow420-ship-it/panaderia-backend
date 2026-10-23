@@ -1,6 +1,5 @@
 ///Controlador Web de Axum (GET /vencimientos). Retorna la respuesta HTTP en JSON respetando la estructura exigida por el contrato.
-
-use axum::{response::IntoResponse, Json, http::StatusCode};
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde_json::json;
 
 /// Handler HTTP de Axum que atiende las peticiones GET en la ruta /vencimientos.
