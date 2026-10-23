@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod descartes;
+mod hornadas;
 mod productos;
 mod vencimientos;
 mod ventas;
@@ -75,6 +76,7 @@ async fn main() {
     let rutas_ventas = ventas::rutas(&config).await;
     let rutas_productos = productos::rutas(&config);
     let rutas_descartes = descartes::rutas(&config);
+    let rutas_hornadas = hornadas::rutas(&config);
     let rutas_vencimientos = vencimientos::rutas(&config);
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
@@ -87,6 +89,7 @@ async fn main() {
         .merge(rutas_ventas)
         .merge(rutas_productos)
         .merge(rutas_descartes)
+        .merge(rutas_hornadas)  
         .merge(rutas_vencimientos)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
