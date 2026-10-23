@@ -1,20 +1,18 @@
+version: '3.8'
+
 services:
   couchdb:
     image: couchdb:3.3.3
     container_name: panaderia-couchdb
     restart: unless-stopped
-
     environment:
       COUCHDB_USER: ${COUCHDB_USER:?Falta COUCHDB_USER en .env}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD en .env}
-
     ports:
       - "127.0.0.1:${COUCHDB_PORT:-15984}:5984"
-
     volumes:
       - couchdb_data:/opt/couchdb/data
       - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
-
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5984/_up"]
       interval: 10s
@@ -22,14 +20,13 @@ services:
       retries: 10
       start_period: 20s
 
-volumes:
-  couchdb_data:
-    api:
-    build: ..                     # usa el Dockerfile de la raíz del repo
+  api:
+    build: ..
+    container_name: panaderia-api
     restart: unless-stopped
     env_file: ../.env
     environment:
-      COUCHDB_URL: http://couchdb:5984   # dentro de Docker, la API ve a CouchDB por su nombre
+      COUCHDB_URL: http://couchdb:5984
       PORT: "3000"
     depends_on:
       couchdb:
@@ -37,6 +34,7 @@ volumes:
 
   caddy:
     image: caddy:2
+    container_name: panaderia-caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -44,3 +42,9 @@ volumes:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  couchdb_data:
+  caddy_data:
+  caddy_config:
