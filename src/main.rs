@@ -89,7 +89,7 @@ async fn main() {
         .merge(rutas_ventas)
         .merge(rutas_productos)
         .merge(rutas_descartes)
-        .merge(rutas_hornadas)  
+        .merge(rutas_hornadas)
         .merge(rutas_vencimientos)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
