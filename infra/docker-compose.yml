@@ -9,7 +9,7 @@ services:
       COUCHDB_USER: ${COUCHDB_USER:?Falta COUCHDB_USER en .env}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD en .env}
     ports:
-      - "127.0.0.1:${COUCHDB_PORT:-15984}:5984"
+        - "${COUCHDB_PORT:-15984}:5984"
     volumes:
       - couchdb_data:/opt/couchdb/data
       - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
