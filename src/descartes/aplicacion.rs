@@ -24,7 +24,7 @@ pub async fn registrar_descarte(
 
     // 2. Generar el _id con el formato del contrato: `descarte:{ULID}`.
     if descarte._id.is_empty() {
-        descarte._id = format!("descarte:{}", ulid::Ulid::new());
+        let id = format!("descarte:{}", ulid::Ulid::generate());
     }
 
     // 3. Guardar el documento en la base `panaderia`.
