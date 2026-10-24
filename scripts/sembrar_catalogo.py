@@ -18,6 +18,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from validar_precios_costos import cargar_y_validar_datos
 
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "scripts" / "datos"
@@ -64,10 +65,8 @@ def guardar(base: str, doc: dict) -> None:
 
 def main() -> None:
     base = os.environ["COUCHDB_URL"].rstrip("/")
-
-    catalogo = json.loads((DATOS / "catalogo.json").read_text(encoding="utf-8"))
-    config = json.loads((DATOS / "config.json").read_text(encoding="utf-8"))
-
+    #modificado
+    catalogo, config = cargar_y_validar_datos()
     print(f"Sembrando catálogo en {base}/catalogo")
     for producto in catalogo["productos"]:
         slug = producto["slug"]
@@ -92,7 +91,7 @@ def main() -> None:
     }
     guardar(f"{base}/panaderia", doc_config)
 
-    print("Listo: 5 productos y sus costos.")
+    print(f"Listo: {len(catalogo['productos'])} productos y sus costos.")
 
 
 if __name__ == "__main__":
