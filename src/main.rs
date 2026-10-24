@@ -10,9 +10,27 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use api::autenticacion::{Usuario, autenticar};
-use axum::{Extension, Json, Router, extract::State, http::StatusCode, middleware, routing::get};
+use axum::{
+    Extension, Json, Router,
+    extract::State,
+    http::{HeaderValue, Method, StatusCode, header},
+    middleware,
+    routing::get,
+};
 use config::Config;
 use serde_json::{Value, json};
+use tower_http::cors::{AllowOrigin, CorsLayer};
+
+/// Orígenes desde los que el navegador puede llamar a la API.
+///
+/// Vite usa el puerto 5173 con `npm run dev` y el 4173 con `npm run preview`.
+/// Si el frontend se publica en otro dominio, hay que agregarlo a esta lista.
+const ORIGENES_PERMITIDOS: [&str; 4] = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+];
 
 /// Estado compartido entre todas las peticiones.
 /// Se envuelve en `Arc` para compartirlo entre tareas sin copiarlo.
@@ -93,10 +111,22 @@ async fn main() {
         .merge(rutas_vencimientos)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
+    // CORS: el navegador bloquea las peticiones del frontend (localhost:5173)
+    // hacia otro origen (panaderia-api.duckdns.org) si la API no devuelve los
+    // encabezados Access-Control-*. La capa va por fuera de las rutas para
+    // contestar el preflight OPTIONS antes del middleware de autenticación.
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(
+            ORIGENES_PERMITIDOS.map(HeaderValue::from_static),
+        ))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE]);
+
     let app: Router = Router::new()
         .route("/salud", get(salud))
         .merge(protegidas)
-        .with_state(estado);
+        .with_state(estado)
+        .layer(cors);
 
     // 0.0.0.0 permite conexiones desde fuera del contenedor.
     let direccion = SocketAddr::from(([0, 0, 0, 0], puerto));
