@@ -141,8 +141,8 @@ impl CouchDb {
 
     /// Relación con **Producto y Config**: lee todos los productos de `catalogo`.
     ///
-    /// Se llama **una sola vez al arrancar** y el resultado queda en memoria, así
-    /// cada venta no tiene que ir a CouchDB por los precios.
+    /// Se llama al arrancar y antes de cada venta, así un producto o un precio
+    /// creado desde fuera de esta API se aplica sin reiniciar el servidor.
     ///
     /// Devuelve un `HashMap` de `producto_id` → producto, para buscar rápido.
     /// Se saltan los `_design/...` y cualquier documento que no sea `tipo: "producto"`

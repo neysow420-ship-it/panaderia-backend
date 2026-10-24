@@ -66,16 +66,12 @@ pub async fn crear_venta(
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_else(|| "desconocido".to_string());
 
-    // 3. Hora actual en El Salvador y ejecución del caso de uso.
+    // 3. Hora actual en El Salvador, catálogo vigente y ejecución del caso de uso.
+    //    El catálogo se relee para aplicar productos y precios recién cambiados.
     let ahora = Utc::now().with_timezone(&zona_negocio());
-    let resultado = registrar_venta(
-        &estado.couch,
-        &estado.catalogo,
-        &solicitud,
-        &nombre_usuario,
-        ahora,
-    )
-    .await;
+    let catalogo = estado.catalogo_actual().await;
+    let resultado =
+        registrar_venta(&estado.couch, &catalogo, &solicitud, &nombre_usuario, ahora).await;
 
     // 4. Traducir el resultado a código HTTP y JSON.
     match resultado {

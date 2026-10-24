@@ -57,8 +57,35 @@ use dominio::ProductoCatalogo;
 struct EstadoVentas {
     /// Conexión a CouchDB.
     couch: CouchDb,
-    /// Catálogo cargado en memoria al iniciar: `producto_id` → producto.
-    catalogo: HashMap<String, ProductoCatalogo>,
+    /// Último catálogo bueno: `producto_id` → producto.
+    ///
+    /// Se refresca antes de cada venta porque los productos y los precios
+    /// pueden cambiar desde fuera de esta API (Fauxton, otro servicio, etc.).
+    /// El `Mutex` evita que dos ventas recarguen el catálogo a la vez.
+    catalogo: tokio::sync::Mutex<HashMap<String, ProductoCatalogo>>,
+}
+
+impl EstadoVentas {
+    /// Devuelve el catálogo más reciente.
+    ///
+    /// Si CouchDB no responde, se usa la última copia buena para no rechazar
+    /// una venta por un fallo momentáneo del catálogo.
+    async fn catalogo_actual(&self) -> HashMap<String, ProductoCatalogo> {
+        let mut catalogo = self.catalogo.lock().await;
+
+        match self.couch.cargar_catalogo().await {
+            Ok(productos) => {
+                *catalogo = productos;
+            }
+            Err(error) => {
+                eprintln!(
+                    "Ventas: no se pudo refrescar el catálogo, se usa el último cargado: {error:?}"
+                );
+            }
+        }
+
+        catalogo.clone()
+    }
 }
 
 /// Prepara las rutas de ventas. Se llama una vez al arrancar desde `main.rs`.
@@ -67,6 +94,10 @@ struct EstadoVentas {
 /// 2. Carga el catálogo de productos en memoria (relación con **Producto y Config**).
 /// 3. Devuelve un `Router` con `POST /ventas` que `main.rs` une a sus rutas
 ///    protegidas, para que pase por el middleware de autenticación.
+///
+/// El catálogo se vuelve a leer antes de cada venta (ver
+/// [`EstadoVentas::catalogo_actual`]), para que los productos y precios
+/// recién creados o modificados se apliquen sin reiniciar la API.
 ///
 /// `<S>` permite unir este router con el de `main.rs` sin importar qué estado use
 /// `main.rs`: ventas ya trae el suyo (`with_state`).
@@ -86,9 +117,15 @@ pub async fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<
         .cargar_catalogo()
         .await
         .expect("No se pudo cargar el catálogo desde CouchDB (¿existe la base 'catalogo'?)");
-    println!("Ventas: catálogo cargado con {} productos", catalogo.len());
+    println!(
+        "Ventas: catálogo inicial cargado con {} productos",
+        catalogo.len()
+    );
 
     Router::new()
         .route("/ventas", post(api::crear_venta))
-        .with_state(Arc::new(EstadoVentas { couch, catalogo }))
+        .with_state(Arc::new(EstadoVentas {
+            couch,
+            catalogo: tokio::sync::Mutex::new(catalogo),
+        }))
 }
