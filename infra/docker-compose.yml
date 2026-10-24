@@ -1,50 +1,51 @@
-  version: '3.8'
+services:
+  couchdb:
+    image: couchdb:3.3.3
+    container_name: panaderia-couchdb
+    restart: unless-stopped
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER:?Falta COUCHDB_USER en .env}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD en .env}
+    ports:
+      - "${COUCHDB_PORT:-15984}:5984"
+    volumes:
+      - couchdb_data:/opt/couchdb/data
+      - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5984/_up"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-  services:
-    couchdb:
-      image: couchdb:3.3.3
-      container_name: panaderia-couchdb
-      restart: unless-stopped
-      environment:
-        COUCHDB_USER: ${COUCHDB_USER:?Falta COUCHDB_USER en .env}
-        COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD en .env}
-      ports:
-          - "${COUCHDB_PORT:-15984}:5984"
-      volumes:
-        - couchdb_data:/opt/couchdb/data
-        - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
-      healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:5984/_up"]
-        interval: 10s
-        timeout: 5s
-        retries: 10
-        start_period: 20s
+  api:
+    build: ..
+    container_name: panaderia-api
+    restart: unless-stopped
+    environment:
+      COUCHDB_URL: http://couchdb:5984
+      BACKEND_USER: ${BACKEND_USER:-backend}
+      BACKEND_PASSWORD: ${BACKEND_PASSWORD:?Falta BACKEND_PASSWORD en .env}
+      PORT: "3000"
+      AUTH_MODE: ${AUTH_MODE:?Falta AUTH_MODE en .env}
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+    depends_on:
+      couchdb:
+        condition: service_healthy
 
-    api:
-      build: ..
-      container_name: panaderia-api
-      restart: unless-stopped
-      env_file: ../.env
-      environment:
-        COUCHDB_URL: http://couchdb:5984
-        PORT: "3000"
-      depends_on:
-        couchdb:
-          condition: service_healthy
+  caddy:
+    image: caddy:2
+    container_name: panaderia-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
 
-    caddy:
-      image: caddy:2
-      container_name: panaderia-caddy
-      restart: unless-stopped
-      ports:
-        - "80:80"
-        - "443:443"
-      volumes:
-        - ./Caddyfile:/etc/caddy/Caddyfile
-        - caddy_data:/data
-        - caddy_config:/config
-
-  volumes:
-    couchdb_data:
-    caddy_data:
-    caddy_config:
+volumes:
+  couchdb_data:
+  caddy_data:
+  caddy_config:

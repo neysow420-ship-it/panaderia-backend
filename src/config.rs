@@ -25,9 +25,9 @@ impl ModoAuth {
 pub struct Config {
     /// URL base de CouchDB (ej. http://localhost:15984).
     pub couchdb_url: String,
-    /// Usuario administrador de CouchDB.
+    /// Usuario de aplicación para acceder a CouchDB.
     pub couchdb_user: String,
-    /// Contraseña del administrador de CouchDB.
+    /// Contraseña del usuario de aplicación.
     pub couchdb_password: String,
     /// Puerto TCP en el que escucha la API.
     pub port: u16,
@@ -43,8 +43,8 @@ impl Config {
     pub fn desde_env() -> Result<Self, String> {
         Ok(Self {
             couchdb_url: requerida("COUCHDB_URL")?,
-            couchdb_user: requerida("COUCHDB_USER")?,
-            couchdb_password: requerida("COUCHDB_PASSWORD")?,
+            couchdb_user: requerida("BACKEND_USER")?,
+            couchdb_password: requerida("BACKEND_PASSWORD")?,
             // PORT llega como texto; se convierte a u16 (0-65535).
             port: requerida("PORT")?
                 .parse()
