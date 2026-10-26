@@ -1,8 +1,10 @@
 mod api;
+mod cierres;
 mod config;
 mod descartes;
 mod hornadas;
 mod productos;
+mod reportes;
 mod vencimientos;
 mod ventas;
 
@@ -15,7 +17,7 @@ use axum::{
     extract::State,
     http::{HeaderValue, Method, StatusCode, header},
     middleware,
-    routing::get,
+    routing::{get, post},
 };
 use config::Config;
 use serde_json::{Value, json};
@@ -34,7 +36,7 @@ const ORIGENES_PERMITIDOS: [&str; 4] = [
 
 /// Estado compartido entre todas las peticiones.
 /// Se envuelve en `Arc` para compartirlo entre tareas sin copiarlo.
-struct Estado {
+pub(crate) struct Estado {
     /// Cliente HTTP reutilizable (mantiene el pool de conexiones a CouchDB).
     cliente: reqwest::Client,
     /// Configuración cargada al arrancar.
@@ -96,6 +98,8 @@ async fn main() {
     let rutas_descartes = descartes::rutas(&config);
     let rutas_hornadas = hornadas::rutas(&config);
     let rutas_vencimientos = vencimientos::rutas(&config);
+    let rutas_cierres = cierres::rutas(&config);
+    let rutas_reportes = reportes::rutas(&config);
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
         config,
@@ -109,6 +113,8 @@ async fn main() {
         .merge(rutas_descartes)
         .merge(rutas_hornadas)
         .merge(rutas_vencimientos)
+        .merge(rutas_cierres)
+        .merge(rutas_reportes)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
     // CORS: el navegador bloquea las peticiones del frontend (localhost:5173)
@@ -120,10 +126,11 @@ async fn main() {
             ORIGENES_PERMITIDOS.map(HeaderValue::from_static),
         ))
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
-        .allow_headers([header::CONTENT_TYPE]);
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     let app: Router = Router::new()
         .route("/salud", get(salud))
+        .route("/auth/login", post(api::autenticacion::iniciar_sesion))
         .merge(protegidas)
         .with_state(estado)
         .layer(cors);

@@ -61,10 +61,7 @@ pub async fn crear_venta(
     //    Hoy el `Usuario` del middleware solo trae el rol, así que se guarda el rol
     //    como texto ("encargado"). Cuando el login agregue el nombre, se cambia
     //    esta parte por `usuario.nombre`.
-    let nombre_usuario = serde_json::to_value(usuario.rol)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_string))
-        .unwrap_or_else(|| "desconocido".to_string());
+    let nombre_usuario = usuario.nombre;
 
     // 3. Hora actual en El Salvador, catálogo vigente y ejecución del caso de uso.
     //    El catálogo se relee para aplicar productos y precios recién cambiados.

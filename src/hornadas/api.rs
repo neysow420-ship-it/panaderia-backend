@@ -51,6 +51,16 @@ pub async fn crear_hornada(
     //    dejará de compilar hasta que se decida responder `403 prohibido`.
     match usuario.rol {
         Rol::Encargado => {}
+        Rol::Cajero => {
+            return error(
+                StatusCode::FORBIDDEN,
+                "prohibido",
+                vec![ErrorCampo::new(
+                    "rol",
+                    "Solo el encargado puede registrar hornadas",
+                )],
+            );
+        }
     }
 
     // 2. ¿El JSON tiene la forma correcta? Si no, 422 con el motivo.
@@ -65,15 +75,8 @@ pub async fn crear_hornada(
         }
     };
 
-    // 3. Nombre del usuario para el campo `usuario` de la hornada.
-    //    Hoy el `Usuario` del middleware solo trae el rol, así que se guarda el rol
-    //    como texto ("encargado"). Cuando el login agregue el nombre, se cambia
-    //    esta parte por `usuario.nombre`.
-    let nombre_usuario = serde_json::to_value(usuario.rol)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_string))
-        .unwrap_or_else(|| "desconocido".to_string());
-
+    // 3. Nombre del usuario que registra la hornada.
+    let nombre_usuario = usuario.nombre;
     // 4. Hora actual en El Salvador y ejecución del caso de uso.
     let ahora = Utc::now().with_timezone(&zona_negocio());
     let resultado = registrar_hornada(&estado.couch, &solicitud, &nombre_usuario, ahora).await;
