@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Valida los precios públicos y los costos internos de la panadería."""
 
+from __future__ import annotations
+
 import json
 import re
 import sys

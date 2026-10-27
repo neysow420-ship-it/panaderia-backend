@@ -22,7 +22,7 @@ cp .env.example .env
 #   BACKEND_PASSWORD, CLIENTE_PASSWORD
 #   CAJERO_PASSWORD, ENCARGADO_PASSWORD
 #   JWT_SECRET
-docker compose --env-file .env -f infra/docker-compose.yml up -d couchdb
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
 ```
 
 Espera a que el contenedor esté `healthy`:
@@ -102,7 +102,22 @@ curl -u "backend:$BACKEND_PASSWORD" "$COUCHDB_URL/catalogo/_all_docs"
 - Los costos internos no pueden guardarse en `catalogo`.
 - Los design docs solo los administra `backend`.
 
-## 6. Reiniciar desde cero
+## 6. CORS del catálogo
+
+La base `catalogo` se lee desde el navegador con PouchDB, por lo que CouchDB
+debe permitir el origen del frontend. La configuración vive en
+`infra/couchdb/local.d/10-cors.ini` y se copia dentro de la imagen
+`panaderia-couchdb` mediante `infra/couchdb/Dockerfile`. Al cambiar de dominio:
+
+```bash
+# Edita infra/couchdb/local.d/10-cors.ini con el origen exacto.
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
+```
+
+La API tiene su propio CORS (`CORS_ORIGINS` en `.env`), independiente del de
+CouchDB.
+
+## 7. Reiniciar desde cero
 
 ```bash
 docker compose --env-file .env -f infra/docker-compose.yml down -v

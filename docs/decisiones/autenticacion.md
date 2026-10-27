@@ -53,6 +53,8 @@ documento si ya existía.
 - `AUTH_MODE=desactivado` no exige token y usa rol `encargado`.
 - Las pruebas de integración contra CouchDB real cubren estos casos en
   `tests/integracion.rs`.
+- El frontend puede leer el catálogo: CouchDB permite el origen en
+  `infra/couchdb/local.d/10-cors.ini`; la API lo permite en `CORS_ORIGINS`.
 
 ## Puesta en marcha en el servidor
 
@@ -67,7 +69,7 @@ documento si ya existía.
    - `CORS_ORIGINS=https://dominio-del-frontend` (separar varios con coma)
 2. Levantar CouchDB y sembrar:
    ```bash
-   docker compose --env-file .env -f infra/docker-compose.yml up -d couchdb
+   docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
    ./infra/couchdb/setup.sh
    ```
 3. Construir y levantar la API y Caddy:

@@ -44,6 +44,21 @@
     }
   }
 
+  // Permitir desactivar productos heredados cuyo _id no cumple el formato
+  // actual. No se borran para conservar las referencias históricas, pero
+  // deben quedar inactivos para que la caja no los muestre.
+  if (oldDoc && newDoc.activo === false) {
+    var idHeredado = String(oldDoc._id || "");
+    var slugHeredado = idHeredado.substring("producto:".length);
+
+    if (
+      idHeredado.indexOf("producto:") === 0 &&
+      !/^[a-z0-9-]{1,64}$/.test(slugHeredado)
+    ) {
+      return;
+    }
+  }
+
   // Solo se permiten documentos de productos.
   if (newDoc.tipo !== "producto") {
     throw({

@@ -48,9 +48,9 @@ Fase 4 en desarrollo. Ya están implementados:
    cp .env.example .env
    ```
    Define las contraseñas y un `JWT_SECRET` largo. Nunca subas `.env`.
-2. Levanta CouchDB:
+2. Levanta CouchDB (incluye CORS para la réplica del catálogo):
    ```bash
-   docker compose --env-file .env -f infra/docker-compose.yml up -d couchdb
+   docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
    ```
 3. Siembra bases, catálogo, vistas y usuarios:
    ```bash
