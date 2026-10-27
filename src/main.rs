@@ -23,17 +23,6 @@ use config::Config;
 use serde_json::{Value, json};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-/// Orígenes desde los que el navegador puede llamar a la API.
-///
-/// Vite usa el puerto 5173 con `npm run dev` y el 4173 con `npm run preview`.
-/// Si el frontend se publica en otro dominio, hay que agregarlo a esta lista.
-const ORIGENES_PERMITIDOS: [&str; 4] = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
-];
-
 /// Estado compartido entre todas las peticiones.
 /// Se envuelve en `Arc` para compartirlo entre tareas sin copiarlo.
 pub(crate) struct Estado {
@@ -100,6 +89,24 @@ async fn main() {
     let rutas_vencimientos = vencimientos::rutas(&config);
     let rutas_cierres = cierres::rutas(&config);
     let rutas_reportes = reportes::rutas(&config);
+
+    // CORS: el navegador bloquea las peticiones del frontend hacia otro origen
+    // si la API no devuelve los encabezados Access-Control-*. Los orígenes se
+    // configuran con CORS_ORIGINS para que funcione también en el servidor.
+    let origenes: Vec<HeaderValue> = config
+        .cors_origins
+        .iter()
+        .map(|origen| {
+            HeaderValue::from_str(origen)
+                .unwrap_or_else(|_| panic!("Origen CORS inválido: {origen}"))
+        })
+        .collect();
+
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origenes))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+
     let estado = Arc::new(Estado {
         cliente: reqwest::Client::new(),
         config,
@@ -116,17 +123,6 @@ async fn main() {
         .merge(rutas_cierres)
         .merge(rutas_reportes)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
-
-    // CORS: el navegador bloquea las peticiones del frontend (localhost:5173)
-    // hacia otro origen (panaderia-api.duckdns.org) si la API no devuelve los
-    // encabezados Access-Control-*. La capa va por fuera de las rutas para
-    // contestar el preflight OPTIONS antes del middleware de autenticación.
-    let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list(
-            ORIGENES_PERMITIDOS.map(HeaderValue::from_static),
-        ))
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
-        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     let app: Router = Router::new()
         .route("/salud", get(salud))

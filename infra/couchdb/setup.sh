@@ -4,20 +4,23 @@
 #   - crea los usuarios backend (administrador) y cliente (solo lectura de catalogo);
 #   - aplica _security por base;
 #   - instala validate_doc_update en catalogo;
-#   - siembra los 5 productos y sus costos.
+#   - siembra los 5 productos, sus costos y los 2 usuarios de aplicación.
 #
 # Uso (desde la raíz del repo): ./infra/couchdb/setup.sh
-# Lee COUCHDB_URL, COUCHDB_USER, COUCHDB_PASSWORD, BACKEND_PASSWORD y
-# CLIENTE_PASSWORD del .env.
+# Lee COUCHDB_URL, COUCHDB_USER, COUCHDB_PASSWORD, BACKEND_PASSWORD,
+# CLIENTE_PASSWORD, CAJERO_PASSWORD y ENCARGADO_PASSWORD del .env.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-set -a; [ -f .env ] && . ./.env; set +a
+ENV_FILE="${PANADERIA_ENV_FILE:-.env}"
+set -a; [ -f "$ENV_FILE" ] && . "$ENV_FILE"; set +a
 
 : "${COUCHDB_URL:?Falta COUCHDB_URL}" \
   "${COUCHDB_USER:?Falta COUCHDB_USER}" \
   "${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD}" \
   "${BACKEND_PASSWORD:?Falta BACKEND_PASSWORD en .env}" \
-  "${CLIENTE_PASSWORD:?Falta CLIENTE_PASSWORD en .env}"
+  "${CLIENTE_PASSWORD:?Falta CLIENTE_PASSWORD en .env}" \
+  "${CAJERO_PASSWORD:?Falta CAJERO_PASSWORD en .env}" \
+  "${ENCARGADO_PASSWORD:?Falta ENCARGADO_PASSWORD en .env}"
 
 BASE="${COUCHDB_URL%/}"
 AUTH="$COUCHDB_USER:$COUCHDB_PASSWORD"
@@ -141,6 +144,7 @@ fi
 
 echo "5. Vistas e índices"
 ./scripts/couchdb-ventas.sh >/dev/null
+./scripts/couchdb-hornadas.sh >/dev/null
 ./scripts/couchdb-productos.sh >/dev/null
 for INDICE in \
   infra/couchdb/descartes/indice_descartes_fecha.json \
@@ -158,5 +162,8 @@ done
 echo "6. Catálogo y costos"
 ./scripts/sembrar-catalogo.sh
 
-echo "7. Prueba de permisos"
+echo "7. Usuarios de aplicación"
+./scripts/sembrar-usuarios.sh
+
+echo "8. Prueba de permisos"
 ./infra/couchdb/prueba-permisos.sh

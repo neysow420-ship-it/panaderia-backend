@@ -4,25 +4,25 @@
     {
       "slug": "pan-frances",
       "nombre": "Pan francés",
-      "precio_centavos": 5,
+      "precio_centavos": 10,
       "vida_util_dias": 1
     },
     {
       "slug": "semita",
       "nombre": "Semita",
-      "precio_centavos": 35,
+      "precio_centavos": 25,
       "vida_util_dias": 2
     },
     {
       "slug": "hojitas",
       "nombre": "Hojitas",
-      "precio_centavos": 10,
+      "precio_centavos": 15,
       "vida_util_dias": 2
     },
     {
       "slug": "cachos",
       "nombre": "Cachos",
-      "precio_centavos": 35,
+      "precio_centavos": 30,
       "vida_util_dias": 2
     },
     {
@@ -30,12 +30,6 @@
       "nombre": "Donas",
       "precio_centavos": 35,
       "vida_util_dias": 2
-    },
-    {
-      "slug": "baggete",
-      "nombre": "Baggete",
-      "precio_centavos": 75,
-      "vida_util_dias": 3
     }
   ]
 }

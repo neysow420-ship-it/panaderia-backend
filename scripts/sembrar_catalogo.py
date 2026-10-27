@@ -63,13 +63,43 @@ def guardar(base: str, doc: dict) -> None:
     print(f"  {doc['_id']}: {estado} ({respuesta.get('rev', 'sin rev')})")
 
 
+def desactivar_productos_fuera_del_catalogo(base: str, ids_canonicos: set[str]) -> None:
+    """Deja inactivos los productos que ya no están en el catálogo canónico.
+
+    No los borra: las ventas y cierres históricos guardan su `producto_id`.
+    Así el catálogo activo queda exactamente con los productos sembrados.
+    """
+    estado, respuesta = pedir(
+        "GET", f"{base}/catalogo/_all_docs?include_docs=true"
+    )
+    if estado != 200:
+        raise SystemExit(f"No se pudo leer el catálogo ({estado}): {respuesta}")
+
+    for fila in respuesta.get("rows", []):
+        doc = fila.get("doc") or {}
+        if doc.get("tipo") != "producto" or doc.get("_id") in ids_canonicos:
+            continue
+        if doc.get("activo") is False:
+            continue
+
+        doc["activo"] = False
+        estado, respuesta = pedir("PUT", f"{base}/catalogo/{doc['_id']}", doc)
+        if estado not in (201, 202):
+            raise SystemExit(
+                f"No se pudo desactivar {doc['_id']} ({estado}): {respuesta}"
+            )
+        print(f"  {doc['_id']}: desactivado (fuera del catálogo canónico)")
+
+
 def main() -> None:
     base = os.environ["COUCHDB_URL"].rstrip("/")
     #modificado
     catalogo, config = cargar_y_validar_datos()
     print(f"Sembrando catálogo en {base}/catalogo")
+    ids_canonicos = set()
     for producto in catalogo["productos"]:
         slug = producto["slug"]
+        ids_canonicos.add(f"producto:{slug}")
         doc = {
             "_id": f"producto:{slug}",
             "tipo": "producto",
@@ -79,6 +109,8 @@ def main() -> None:
             "activo": True,
         }
         guardar(f"{base}/catalogo", doc)
+
+    desactivar_productos_fuera_del_catalogo(base, ids_canonicos)
 
     print(f"Sembrando configuración en {base}/panaderia")
     doc_config = {

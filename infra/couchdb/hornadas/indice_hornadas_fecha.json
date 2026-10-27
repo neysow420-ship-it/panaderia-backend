@@ -1,0 +1,6 @@
+{
+  "index": { "fields": ["tipo", "fecha"] },
+  "ddoc": "indices-hornadas",
+  "name": "hornadas-por-fecha",
+  "type": "json"
+}

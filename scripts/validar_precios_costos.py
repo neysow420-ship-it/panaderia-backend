@@ -9,7 +9,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "scripts" / "datos"
-PRODUCTOS_ESPERADOS = 6
+PRODUCTOS_ESPERADOS = 5
 
 
 def validar_fecha(valor: object, contexto: str) -> None:

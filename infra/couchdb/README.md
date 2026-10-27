@@ -1,12 +1,12 @@
 # CouchDB: bases, usuarios y permisos
 
-Este directorio contiene la configuración de CouchDB para la fase 3.8:
+Este directorio contiene la configuración de CouchDB:
 
 | Base | Uso | `backend` | `cliente` |
 |---|---|---|---|
 | `panaderia` | ventas, hornadas, descartes, cierres, `config:vigente` | leer/escribir | sin acceso |
 | `catalogo` | `producto:{slug}` (precio de venta) | leer/escribir | **solo lectura** |
-| `usuarios` | `usuario:{nombre}` con hash argon2 | leer/escribir | sin acceso |
+| `usuarios` | `usuario:{nombre}` con hash Argon2id | leer/escribir | sin acceso |
 
 `backend` es administrador de las tres bases (rol `backend`). `cliente` solo es
 miembro de `catalogo` (rol `cliente`). Ninguno es administrador del servidor:
@@ -20,7 +20,9 @@ cp .env.example .env
 # Edita .env y define, como mínimo:
 #   COUCHDB_USER, COUCHDB_PASSWORD, COUCHDB_URL, COUCHDB_PORT
 #   BACKEND_PASSWORD, CLIENTE_PASSWORD
-docker compose --env-file .env -f infra/docker-compose.yml up -d
+#   CAJERO_PASSWORD, ENCARGADO_PASSWORD
+#   JWT_SECRET
+docker compose --env-file .env -f infra/docker-compose.yml up -d couchdb
 ```
 
 Espera a que el contenedor esté `healthy`:
@@ -43,10 +45,27 @@ El script es idempotente y hace lo siguiente:
 3. Aplica `_security` a cada base.
 4. Instala `validate_doc_update` en `catalogo` desde
    `infra/couchdb/validacion/catalogo.js`.
-5. Siembra los 5 productos y sus costos con `scripts/sembrar-catalogo.sh`.
-6. Ejecuta `prueba-permisos.sh`.
+5. Instala las vistas e índices Mango de ventas, hornadas, descartes y
+   vencimientos.
+6. Siembra los **5 productos** canónicos y sus costos, y deja inactivos los
+   productos que ya no pertenecen al catálogo.
+7. Crea o actualiza los usuarios de aplicación `cajero1` y `encargado1` con
+   hash Argon2id. Las contraseñas salen de `CAJERO_PASSWORD` y
+   `ENCARGADO_PASSWORD`.
+8. Ejecuta `prueba-permisos.sh`.
 
-## 3. Prueba de permisos
+## 3. Usuarios de aplicación
+
+| Documento | Rol | Variables |
+|---|---|---|
+| `usuario:cajero1` | `cajero` | `CAJERO_USUARIO`, `CAJERO_PASSWORD` |
+| `usuario:encargado1` | `encargado` | `ENCARGADO_USUARIO`, `ENCARGADO_PASSWORD` |
+
+La contraseña nunca se guarda en claro. Para cambiar una contraseña, edita el
+`.env` y vuelve a ejecutar `./scripts/sembrar-usuarios.sh` (o el `setup.sh`
+completo).
+
+## 4. Prueba de permisos
 
 ```bash
 ./infra/couchdb/prueba-permisos.sh
@@ -71,7 +90,7 @@ curl -u "cliente:$CLIENTE_PASSWORD" "$COUCHDB_URL/panaderia/_all_docs"   # debe 
 curl -u "backend:$BACKEND_PASSWORD" "$COUCHDB_URL/catalogo/_all_docs"
 ```
 
-## 4. Reglas de `validate_doc_update`
+## 5. Reglas de `validate_doc_update`
 
 `infra/couchdb/validacion/catalogo.js`:
 
@@ -80,14 +99,16 @@ curl -u "backend:$BACKEND_PASSWORD" "$COUCHDB_URL/catalogo/_all_docs"
 - Solo se aceptan documentos `producto:{slug}`.
 - `nombre` no vacío, `precio_centavos` entero ≥ 0, `vida_util_dias` entero
   entre 1 y 365, `activo` booleano.
+- Los costos internos no pueden guardarse en `catalogo`.
 - Los design docs solo los administra `backend`.
 
-## 5. Reiniciar desde cero
+## 6. Reiniciar desde cero
 
 ```bash
 docker compose --env-file .env -f infra/docker-compose.yml down -v
-docker compose --env-file .env -f infra/docker-compose.yml up -d
+docker compose --env-file .env -f infra/docker-compose.yml up -d couchdb
 ./infra/couchdb/setup.sh
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build api caddy
 ```
 
 `down -v` borra el volumen `couchdb_data` y, con él, las bases y usuarios.

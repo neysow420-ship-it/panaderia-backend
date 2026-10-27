@@ -8,7 +8,8 @@
 # Uso: ./infra/couchdb/prueba-permisos.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-set -a; [ -f .env ] && . ./.env; set +a
+ENV_FILE="${PANADERIA_ENV_FILE:-.env}"
+set -a; [ -f "$ENV_FILE" ] && . "$ENV_FILE"; set +a
 
 : "${COUCHDB_URL:?Falta COUCHDB_URL}" \
   "${BACKEND_PASSWORD:?Falta BACKEND_PASSWORD}" \

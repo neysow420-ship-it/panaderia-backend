@@ -1,0 +1,24 @@
+# Nunca enviar secretos al contexto de compilación.
+.env
+.env.*
+.env.save
+
+# Historial y archivos que no se necesitan en la imagen.
+.git
+.github
+.gitignore
+target
+docs
+tests
+scripts
+infra
+*.md
+*.log
+__pycache__
+*.py[cod]
+
+# Editores y sistema.
+.vscode
+.idea
+.DS_Store
+Thumbs.db

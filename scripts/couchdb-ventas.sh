@@ -5,7 +5,8 @@
 # Lee COUCHDB_URL, COUCHDB_USER y COUCHDB_PASSWORD del .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-set -a; [ -f .env ] && . ./.env; set +a
+ENV_FILE="${PANADERIA_ENV_FILE:-.env}"
+set -a; [ -f "$ENV_FILE" ] && . "$ENV_FILE"; set +a
 : "${COUCHDB_URL:?Falta COUCHDB_URL}" "${COUCHDB_USER:?Falta COUCHDB_USER}" "${COUCHDB_PASSWORD:?Falta COUCHDB_PASSWORD}"
 AUTH="$COUCHDB_USER:$COUCHDB_PASSWORD"
 C() { curl -s -u "$AUTH" -H 'Content-Type: application/json' "$@"; echo; }
@@ -27,7 +28,10 @@ fi
 echo "Índice Mango tipo+fecha:"
 C -X POST "$COUCHDB_URL/panaderia/_index" -d @infra/couchdb/ventas/indice_ventas_fecha.json
 
+echo "Índice Mango tipo+producto:"
+C -X POST "$COUCHDB_URL/panaderia/_index" -d @infra/couchdb/ventas/indice_ventas_producto.json
+
 if [ "${1:-}" = "--prueba" ]; then
-  echo "Productos y costos de prueba:"
+  echo "Productos y costos canónicos:"
   python3 scripts/sembrar_catalogo.py
 fi

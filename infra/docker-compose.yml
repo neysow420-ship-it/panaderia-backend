@@ -10,7 +10,6 @@ services:
       - "${COUCHDB_PORT:-15984}:5984"
     volumes:
       - couchdb_data:/opt/couchdb/data
-      - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5984/_up"]
       interval: 10s
@@ -29,6 +28,7 @@ services:
       PORT: "3000"
       AUTH_MODE: ${AUTH_MODE:?Falta AUTH_MODE en .env}
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       couchdb:
         condition: service_healthy

@@ -1,0 +1,10 @@
+{
+  "_id": "_design/hornadas",
+  "language": "javascript",
+  "views": {
+    "hornadas_por_dia_producto": {
+      "map": "function (doc) { if (doc.tipo !== 'hornada') return; emit([doc.fecha, doc.producto_id], doc.unidades); }",
+      "reduce": "_sum"
+    }
+  }
+}

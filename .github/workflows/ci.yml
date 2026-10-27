@@ -20,10 +20,40 @@ jobs:
     # Nombre del trabajo en la interfaz de GitHub
     name: rust
 
-    # Sistema operativo donde se ejecutarán las comprobaciones
+    # Sistema operativo donde se ejecutan las comprobaciones
     runs-on: ubuntu-latest
 
-    # Pasos que se ejecutan en orden dentro del trabajo
+    # CouchDB real para las pruebas de integración
+    services:
+      couchdb:
+        image: couchdb:3.3.3
+        env:
+          COUCHDB_USER: admin
+          COUCHDB_PASSWORD: admin-ci
+        ports:
+          - 5984:5984
+        options: >-
+          --health-cmd "curl -f http://localhost:5984/_up"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      COUCHDB_URL: http://localhost:5984
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: admin-ci
+      COUCHDB_PORT: 5984
+      BACKEND_USER: backend
+      BACKEND_PASSWORD: backend-ci
+      CLIENTE_PASSWORD: cliente-ci
+      CAJERO_USUARIO: cajero1
+      CAJERO_PASSWORD: cajero-ci
+      ENCARGADO_USUARIO: encargado1
+      ENCARGADO_PASSWORD: encargado-ci
+      JWT_SECRET: jwt-ci-secreto-de-pruebas
+      AUTH_MODE: activo
+      PANADERIA_INTEGRACION: "1"
+
     steps:
       # Descargar el código del repositorio en la máquina virtual
       - uses: actions/checkout@v4
@@ -55,7 +85,17 @@ jobs:
         if: hashFiles('Cargo.toml') != ''
         run: cargo clippy --all-targets -- -D warnings
 
-      # Ejecutar las pruebas automatizadas del proyecto Rust
+      # Validar que los datos de siembra sigan el contrato
+      - name: Datos canónicos
+        if: hashFiles('Cargo.toml') != ''
+        run: python3 -m unittest discover -s scripts/pruebas
+
+      # Crear bases, usuarios, vistas, catálogo y usuarios de aplicación
+      - name: Preparar CouchDB
+        if: hashFiles('Cargo.toml') != ''
+        run: ./infra/couchdb/setup.sh
+
+      # Ejecutar pruebas unitarias y de integración (contra CouchDB)
       - name: Pruebas
         if: hashFiles('Cargo.toml') != ''
-        run: cargo test
+        run: cargo test -- --test-threads=1

@@ -1,0 +1,6 @@
+{
+  "index": { "fields": ["tipo", "lineas.producto_id"] },
+  "ddoc": "indices-ventas",
+  "name": "ventas-por-producto",
+  "type": "json"
+}

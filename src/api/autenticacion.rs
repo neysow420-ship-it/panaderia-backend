@@ -184,8 +184,8 @@ pub(crate) async fn iniciar_sesion(
         return credenciales_invalidas();
     }
 
-    // El JWT vence ocho horas después de iniciar sesión.
-    let expira_en = Utc::now() + Duration::hours(8);
+    // El JWT vence doce horas después de iniciar sesión (contrato de la fase 4B).
+    let expira_en = Utc::now() + Duration::hours(12);
     let claims = Claims {
         sub: documento.nombre.clone(),
         rol,

@@ -1,0 +1,6 @@
+{
+  "index": { "fields": ["tipo", "producto_id"] },
+  "ddoc": "indices-hornadas",
+  "name": "hornadas-por-producto",
+  "type": "json"
+}
