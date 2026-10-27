@@ -27,7 +27,7 @@ elif command -v docker >/dev/null 2>&1; then
     -e BACKEND_USER -e BACKEND_PASSWORD \
     -e CAJERO_USUARIO -e CAJERO_PASSWORD \
     -e ENCARGADO_USUARIO -e ENCARGADO_PASSWORD \
-    api cargo run --quiet --bin sembrar_usuarios
+    api ./target/release/sembrar_usuarios
 else
   echo "Se necesita cargo (Rust) o Docker para sembrar los usuarios." >&2
   exit 1
