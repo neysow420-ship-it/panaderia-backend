@@ -66,7 +66,8 @@ documento si ya existía.
    - `ENCARGADO_USUARIO`, `ENCARGADO_PASSWORD`
    - `AUTH_MODE=activo`
    - `JWT_SECRET` largo y aleatorio
-   - `CORS_ORIGINS=https://dominio-del-frontend` (separar varios con coma)
+   - `CORS_ORIGINS=https://panaderia.duckdns.org,http://localhost:5173`
+     (separar varios con coma; agrega el dominio real del frontend)
 2. Levantar CouchDB y sembrar:
    ```bash
    docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
