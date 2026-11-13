@@ -17,8 +17,8 @@ set -a; [ -f "$ENV_FILE" ] && . "$ENV_FILE"; set +a
   "${ENCARGADO_PASSWORD:?Falta ENCARGADO_PASSWORD}"
 
 export BACKEND_USER="${BACKEND_USER:-backend}"
-export CAJERO_USUARIO="${CAJERO_USUARIO:-cajero1}"
-export ENCARGADO_USUARIO="${ENCARGADO_USUARIO:-encargado1}"
+export CAJERO_USUARIO="${CAJERO_USUARIO:-101}"
+export ENCARGADO_USUARIO="${ENCARGADO_USUARIO:-201}"
 
 if command -v cargo >/dev/null 2>&1; then
   cargo run --quiet --bin sembrar_usuarios

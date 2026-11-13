@@ -47,7 +47,8 @@ Fase 4 en desarrollo. Ya están implementados:
    ```bash
    cp .env.example .env
    ```
-   Define las contraseñas y un `JWT_SECRET` largo. Nunca subas `.env`.
+   Define códigos de usuario de 3 dígitos, PIN numéricos de 4 dígitos y un
+   `JWT_SECRET` largo. Nunca subas `.env`.
 2. Levanta CouchDB (incluye CORS para la réplica del catálogo):
    ```bash
    docker compose --env-file .env -f infra/docker-compose.yml up -d --build couchdb
@@ -68,7 +69,7 @@ Fase 4 en desarrollo. Ya están implementados:
    ```bash
    curl -X POST http://localhost:3000/auth/login \
      -H 'Content-Type: application/json' \
-     -d '{"usuario":"cajero1","contrasena":"<CAJERO_PASSWORD>"}'
+     -d '{"usuario":"101","contrasena":"<CAJERO_PASSWORD>"}'
    ```
 
 Instrucciones detalladas: `infra/read.md`, `infra/couchdb/README.md` y

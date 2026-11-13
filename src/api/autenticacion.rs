@@ -84,25 +84,31 @@ pub(crate) async fn iniciar_sesion(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "solicitud_invalida",
                 "cuerpo",
-                "Se requiere un JSON válido con usuario y contrasena",
+                "Se requiere un JSON válido con código de usuario y PIN",
             );
         }
     };
 
-    // Validar el nombre antes de usarlo para consultar CouchDB.
+    // El código de acceso identifica la cuenta y siempre son tres dígitos.
     let nombre = solicitud.usuario.as_str();
-    let nombre_valido = !nombre.is_empty()
-        && nombre.len() <= 64
-        && nombre
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-');
+    let nombre_valido = nombre.len() == 3 && nombre.bytes().all(|c| c.is_ascii_digit());
 
     if !nombre_valido {
         return error_con_campo(
             StatusCode::UNPROCESSABLE_ENTITY,
             "validacion",
             "usuario",
-            "Debe contener entre 1 y 64 caracteres: a-z, 0-9 o guion",
+            "El código de usuario debe tener exactamente 3 dígitos",
+        );
+    }
+
+    if solicitud.contrasena.len() != 4 || !solicitud.contrasena.bytes().all(|c| c.is_ascii_digit())
+    {
+        return error_con_campo(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validacion",
+            "contrasena",
+            "El PIN debe tener exactamente 4 dígitos",
         );
     }
 

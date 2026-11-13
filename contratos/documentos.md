@@ -570,10 +570,10 @@ Nunca se replica al cliente. La contraseña se guarda **solo** como hash
 
 ```json
 {
-  "_id": "usuario:cajero1",
+  "_id": "usuario:101",
   "_rev": "1-4e5f...",
   "tipo": "usuario",
-  "nombre": "cajero1",
+  "nombre": "101",
   "rol": "cajero",
   "hash_argon2": "$argon2id$v=19$m=19456,t=2,p=1$...",
   "activo": true,

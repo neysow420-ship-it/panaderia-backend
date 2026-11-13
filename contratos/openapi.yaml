@@ -335,10 +335,14 @@ components:
       properties:
         usuario:
           type: string
-          example: cajero1
+          description: Código de usuario de exactamente 3 dígitos.
+          pattern: '^[0-9]{3}$'
+          example: '101'
         contrasena:
           type: string
           format: password
+          description: PIN de exactamente 4 dígitos.
+          pattern: '^[0-9]{4}$'
     UsuarioSesion:
       type: object
       required: [nombre, rol]

@@ -16,7 +16,7 @@ porque el sistema podría desplegarse con datos reales en el futuro.
 
 - Los datos se generan con `datos-sinteticos/` y una **semilla fija**; no se
   copian de una panadería real ni de bases de clientes.
-- Los nombres de usuario son genéricos (`cajero1`, `cajero2`, `encargado1`), sin
+- Los códigos de usuario son genéricos (`101`, `102`, `201`), sin
   nombres, correos, teléfonos, direcciones ni documentos de identidad.
 - Los `dispositivo_id` son etiquetas (`caja-1`, `caja-2`), no identificadores de
   hardware.

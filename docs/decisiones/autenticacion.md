@@ -12,8 +12,9 @@ se enviaba el encabezado `Authorization`. En la práctica, con el backend en
 
 Se mantiene la autenticación real del contrato:
 
-- `POST /auth/login` valida usuario y contraseña contra `usuarios/{usuario}`.
-- La contraseña solo se guarda como hash **Argon2id**.
+- `POST /auth/login` valida un código de usuario de 3 dígitos y un PIN de 4
+  dígitos contra `usuarios/usuario:{codigo}`.
+- El PIN solo se guarda como hash **Argon2id**.
 - El JWT se firma con HS256 y dura **12 horas**.
 - Las rutas protegidas exigen `Authorization: Bearer <token>`.
 - `cajero` puede registrar ventas; `encargado` además puede hornadas, cierre y
@@ -34,12 +35,13 @@ En el navegador:
 
 `infra/couchdb/setup.sh` crea o actualiza dos usuarios:
 
-| Usuario | Rol | Variables |
+| Código | Rol | Variables |
 |---|---|---|
-| `cajero1` | `cajero` | `CAJERO_USUARIO`, `CAJERO_PASSWORD` |
-| `encargado1` | `encargado` | `ENCARGADO_USUARIO`, `ENCARGADO_PASSWORD` |
+| `101` (predeterminado) | `cajero` | `CAJERO_USUARIO`, `CAJERO_PASSWORD` |
+| `201` (predeterminado) | `encargado` | `ENCARGADO_USUARIO`, `ENCARGADO_PASSWORD` |
 
-Las contraseñas solo viven en `.env` (nunca en Git). El binario
+Los códigos deben ser exactamente 3 números y los PIN exactamente 4. Los PIN
+solo viven en `.env` (nunca en Git). El binario
 `src/bin/sembrar_usuarios.rs` calcula el hash y conserva los demás campos del
 documento si ya existía.
 
@@ -82,7 +84,7 @@ documento si ya existía.
    curl -fsS https://panaderia-api.duckdns.org/salud
    curl -X POST https://panaderia-api.duckdns.org/auth/login \
      -H 'Content-Type: application/json' \
-     -d '{"usuario":"cajero1","contrasena":"<CAJERO_PASSWORD>"}'
+     -d '{"usuario":"101","contrasena":"<CAJERO_PASSWORD>"}'
    ```
 5. En el frontend, definir `VITE_API_URL=https://panaderia-api.duckdns.org` y
    `VITE_AUTH=activado`, y reconstruir la PWA.

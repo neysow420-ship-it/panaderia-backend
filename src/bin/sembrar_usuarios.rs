@@ -8,8 +8,8 @@
 //!
 //! ```text
 //! COUCHDB_URL=... BACKEND_USER=backend BACKEND_PASSWORD=... \
-//! CAJERO_USUARIO=cajero1 CAJERO_PASSWORD=... \
-//! ENCARGADO_USUARIO=encargado1 ENCARGADO_PASSWORD=... \
+//! CAJERO_USUARIO=101 CAJERO_PASSWORD=1234 \
+//! ENCARGADO_USUARIO=201 ENCARGADO_PASSWORD=5678 \
 //! cargo run --bin sembrar_usuarios
 //! ```
 
@@ -21,8 +21,8 @@ use reqwest::{Client, StatusCode, Url};
 use serde_json::{Map, Value, json};
 
 const ROLES: [(&str, &str, &str); 2] = [
-    ("CAJERO_USUARIO", "cajero1", "cajero"),
-    ("ENCARGADO_USUARIO", "encargado1", "encargado"),
+    ("CAJERO_USUARIO", "101", "cajero"),
+    ("ENCARGADO_USUARIO", "201", "encargado"),
 ];
 
 #[tokio::main]
@@ -51,9 +51,9 @@ async fn ejecutar() -> Result<(), String> {
         let contrasena = requerida(&variable.replace("_USUARIO", "_PASSWORD"))?;
 
         validar_nombre(&nombre)?;
-        if contrasena.len() < 8 {
+        if contrasena.len() != 4 || !contrasena.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(format!(
-                "La contraseña de {variable} debe tener al menos 8 caracteres"
+                "El PIN de {variable} debe tener exactamente 4 dígitos"
             ));
         }
         if nombres.contains(&nombre) {
@@ -162,17 +162,13 @@ fn documento_url(base: &Url, id: &str) -> Result<Url, String> {
 }
 
 fn validar_nombre(nombre: &str) -> Result<(), String> {
-    let valido = !nombre.is_empty()
-        && nombre.len() <= 64
-        && nombre
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-');
+    let valido = nombre.len() == 3 && nombre.bytes().all(|c| c.is_ascii_digit());
 
     if valido {
         Ok(())
     } else {
         Err(format!(
-            "El usuario '{nombre}' debe usar entre 1 y 64 caracteres: a-z, 0-9 o guion"
+            "El código de usuario '{nombre}' debe tener exactamente 3 dígitos"
         ))
     }
 }
