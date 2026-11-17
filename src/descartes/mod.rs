@@ -3,7 +3,7 @@ pub mod aplicacion;
 pub mod couchdb;
 pub mod dominio;
 
-use axum::{Router, routing::post};
+use axum::{Router, routing::get};
 
 use crate::config::Config;
 
@@ -19,6 +19,9 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     };
 
     Router::new()
-        .route("/descartes", post(api::post_descarte))
+        .route(
+            "/descartes",
+            get(api::listar_descartes).post(api::post_descarte),
+        )
         .with_state(estado)
 }

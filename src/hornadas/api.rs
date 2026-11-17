@@ -19,11 +19,12 @@ use std::sync::Arc;
 
 use axum::{
     Extension, Json,
-    extract::{State, rejection::JsonRejection},
+    extract::{Query, State, rejection::JsonRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
+use serde::Deserialize;
 use serde_json::json;
 
 use super::EstadoHornadas;
@@ -113,6 +114,65 @@ fn exito(codigo: StatusCode, mut hornada: Hornada, ya_procesada: bool) -> Respon
         Json(json!({ "ya_procesada": ya_procesada, "hornada": hornada })),
     )
         .into_response()
+}
+
+/// Parámetro `?fecha=AAAA-MM-DD` para las lecturas del día.
+#[derive(Deserialize)]
+pub struct FiltroFecha {
+    pub fecha: NaiveDate,
+}
+
+/// `GET /hornadas?fecha=AAAA-MM-DD`.
+///
+/// Lista las hornadas de un día. Lo usa la pantalla de Producción para mostrar
+/// los lotes registrados y elegir uno al declarar merma.
+pub async fn listar_hornadas(
+    State(estado): State<Arc<EstadoHornadas>>,
+    Extension(usuario): Extension<Usuario>,
+    filtro: Result<Query<FiltroFecha>, axum::extract::rejection::QueryRejection>,
+) -> Response {
+    // Solo el encargado trabaja con producción.
+    match usuario.rol {
+        Rol::Encargado => {}
+        Rol::Cajero => {
+            return error(
+                StatusCode::FORBIDDEN,
+                "prohibido",
+                vec![ErrorCampo::new(
+                    "rol",
+                    "Solo el encargado puede consultar las hornadas",
+                )],
+            );
+        }
+    }
+
+    let Query(filtro) = match filtro {
+        Ok(filtro) => filtro,
+        Err(_) => {
+            return error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "solicitud_invalida",
+                vec![ErrorCampo::new(
+                    "fecha",
+                    "Indica la fecha con formato AAAA-MM-DD",
+                )],
+            );
+        }
+    };
+
+    match estado.couch.listar_por_fecha(filtro.fecha).await {
+        Ok(mut hornadas) => {
+            for hornada in &mut hornadas {
+                hornada.rev = None;
+            }
+
+            (StatusCode::OK, Json(json!({ "hornadas": hornadas }))).into_response()
+        }
+        Err(detalle) => {
+            eprintln!("GET /hornadas: base no disponible: {detalle:?}");
+            error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![])
+        }
+    }
 }
 
 /// Respuesta de error con la forma del contrato:

@@ -16,8 +16,10 @@
 //! - **Producto y Config**: lee `catalogo/producto:{slug}` para comprobar que el
 //!   producto existe y obtener su `vida_util_dias`.
 
+use chrono::NaiveDate;
 use reqwest::{Client, StatusCode, Url};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::Value;
 
 use super::aplicacion::{ErrorRepositorio, RepositorioHornadas};
 use super::dominio::{Hornada, ProductoCatalogo};
@@ -132,6 +134,94 @@ impl CouchDb {
                 "CouchDB respondió {otro} al crear {bd}/{id}"
             ))),
         }
+    }
+
+    /// Lista todos los documentos cuyo `_id` empieza por `prefijo`.
+    ///
+    /// Usa `_all_docs` con un rango de claves: `"{prefijo}"` hasta
+    /// `"{prefijo}\u{fff0}"`. No necesita vistas ni índices adicionales.
+    async fn listar_por_prefijo<T: DeserializeOwned>(
+        &self,
+        bd: &str,
+        prefijo: &str,
+        tipo: &str,
+    ) -> Result<Vec<T>, ErrorRepositorio> {
+        #[derive(Deserialize)]
+        struct Fila {
+            doc: Option<Value>,
+        }
+
+        #[derive(Deserialize)]
+        struct Respuesta {
+            rows: Vec<Fila>,
+        }
+
+        let mut url = self.url(&[bd, "_all_docs"]);
+
+        let inicio = format!("\"{prefijo}\"");
+        let fin = format!("\"{prefijo}\u{fff0}\"");
+
+        url.query_pairs_mut()
+            .append_pair("include_docs", "true")
+            .append_pair("startkey", &inicio)
+            .append_pair("endkey", &fin);
+
+        let respuesta: Respuesta = self
+            .cliente
+            .get(url)
+            .basic_auth(&self.usuario, Some(&self.contrasena))
+            .send()
+            .await
+            .map_err(no_disponible)?
+            .error_for_status()
+            .map_err(no_disponible)?
+            .json()
+            .await
+            .map_err(no_disponible)?;
+
+        let mut documentos = Vec::new();
+
+        for fila in respuesta.rows {
+            let Some(documento) = fila.doc else {
+                continue;
+            };
+
+            if documento.get("tipo").and_then(Value::as_str) != Some(tipo) {
+                continue;
+            }
+
+            let convertido = serde_json::from_value(documento).map_err(|error| {
+                ErrorRepositorio::NoDisponible(format!(
+                    "Documento de tipo {tipo} mal formado: {error}"
+                ))
+            })?;
+
+            documentos.push(convertido);
+        }
+
+        Ok(documentos)
+    }
+
+    /// Lista las hornadas de un día, ordenadas por hora de creación.
+    ///
+    /// La pantalla de Producción y la vista previa del Cierre necesitan
+    /// conocer los lotes ya registrados, no solo crearlos.
+    pub async fn listar_por_fecha(
+        &self,
+        fecha: NaiveDate,
+    ) -> Result<Vec<Hornada>, ErrorRepositorio> {
+        let documentos: Vec<Hornada> = self
+            .listar_por_prefijo(BD_PANADERIA, "hornada:", "hornada")
+            .await?;
+
+        let mut del_dia: Vec<Hornada> = documentos
+            .into_iter()
+            .filter(|hornada| hornada.fecha == fecha)
+            .collect();
+
+        del_dia.sort_by(|a, b| a.creado_en.cmp(&b.creado_en));
+
+        Ok(del_dia)
     }
 }
 

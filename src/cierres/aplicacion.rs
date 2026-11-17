@@ -4,7 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::dominio::{Cierre, CierrePorProducto, DescarteCierre, ErrorCampo, SolicitudCierre};
 
@@ -120,6 +120,100 @@ impl From<ErrorRepositorio> for ErrorCierre {
             ErrorRepositorio::NoDisponible(motivo) => Self::NoDisponible(motivo),
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Caso de uso: vista previa del día (sin cerrarlo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Cifras del día por producto, antes de declarar descartes.
+#[derive(Clone, Debug, Serialize)]
+pub struct PreviewProducto {
+    pub producto_id: String,
+    pub producidas: i64,
+    pub vendidas: i64,
+    pub costo_unitario_centavos: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PreviewDia {
+    pub fecha: NaiveDate,
+    pub cerrado: bool,
+    pub por_producto: Vec<PreviewProducto>,
+}
+
+/// Calcula lo producido y vendido del día sin escribir nada.
+///
+/// La pantalla de Cierre usa esto para mostrar la tabla antes de confirmar.
+/// Los descartes no se incluyen: el encargado los declara en el formulario.
+pub async fn previsualizar_dia<R: RepositorioCierres>(
+    repo: &R,
+    fecha: NaiveDate,
+) -> Result<PreviewDia, ErrorCierre> {
+    let cerrado = repo.obtener_cierre(fecha).await?.is_some();
+    let productos = repo.listar_productos().await?;
+    let config = repo.obtener_config().await?;
+
+    let mut activos = BTreeSet::new();
+
+    for producto in productos {
+        if producto.activo {
+            activos.insert(producto.id);
+        }
+    }
+
+    let mut costos = HashMap::new();
+
+    if let Some(config) = config {
+        for costo in config.costos {
+            costos.insert(costo.producto_id, costo.costo_unitario_centavos);
+        }
+    }
+
+    let mut producidas: HashMap<String, i64> = HashMap::new();
+
+    for hornada in repo.listar_hornadas(fecha).await? {
+        if hornada.fecha == fecha {
+            acumular(
+                &mut producidas,
+                hornada.producto_id,
+                hornada.unidades,
+                "produccion",
+            )?;
+        }
+    }
+
+    let mut vendidas: HashMap<String, i64> = HashMap::new();
+
+    for venta in repo.listar_ventas(fecha).await? {
+        if venta.fecha != fecha {
+            continue;
+        }
+
+        for linea in venta.lineas {
+            acumular(&mut vendidas, linea.producto_id, linea.cantidad, "ventas")?;
+        }
+    }
+
+    let mut ids = activos;
+    ids.extend(producidas.keys().cloned());
+    ids.extend(vendidas.keys().cloned());
+
+    let por_producto = ids
+        .into_iter()
+        .map(|producto_id| PreviewProducto {
+            producidas: producidas.get(&producto_id).copied().unwrap_or(0),
+            vendidas: vendidas.get(&producto_id).copied().unwrap_or(0),
+            costo_unitario_centavos: costos.get(&producto_id).copied(),
+            producto_id,
+        })
+        .collect();
+
+    Ok(PreviewDia {
+        fecha,
+        cerrado,
+        por_producto,
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

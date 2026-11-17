@@ -811,3 +811,123 @@ async fn vistas_e_indices_estan_instalados() {
         );
     }
 }
+
+#[tokio::test]
+async fn lecturas_del_dia_y_permisos_de_produccion() {
+    let Some(entorno) = entorno() else {
+        return;
+    };
+    let db = Db::new(&entorno);
+    db.preparar_catalogo().await;
+
+    let encargado = nombre_unico("encargado");
+    let cajero = nombre_unico("cajero");
+    let contrasena = "contrasena-de-prueba-123";
+    db.crear_usuario(&encargado, "encargado", contrasena).await;
+    db.crear_usuario(&cajero, "cajero", contrasena).await;
+
+    let api = Api::iniciar(&entorno, "activo", None).await;
+
+    let (_, respuesta) = api.login(&encargado, contrasena).await;
+    let token_encargado = token_de(&respuesta);
+    let (_, respuesta) = api.login(&cajero, contrasena).await;
+    let token_cajero = token_de(&respuesta);
+
+    // 1. El encargado registra una hornada.
+    let operacion = ulid();
+    let (estado, respuesta) = api
+        .post("/hornadas", Some(&token_encargado), &hornada_body(&operacion))
+        .await;
+    assert_eq!(estado, StatusCode::CREATED);
+
+    let lote = respuesta["hornada"]["_id"]
+        .as_str()
+        .expect("_id de la hornada")
+        .to_string();
+
+    let hoy = hoy();
+
+    // 2. GET /hornadas lista el lote del día; el cajero recibe 403.
+    let (estado, respuesta) = api
+        .get(&format!("/hornadas?fecha={hoy}"), Some(&token_encargado))
+        .await;
+    assert_eq!(estado, StatusCode::OK);
+    assert!(
+        respuesta["hornadas"]
+            .as_array()
+            .expect("lista de hornadas")
+            .iter()
+            .any(|hornada| hornada["_id"] == lote.as_str())
+    );
+
+    let (estado, _) = api
+        .get(&format!("/hornadas?fecha={hoy}"), Some(&token_cajero))
+        .await;
+    assert_eq!(estado, StatusCode::FORBIDDEN);
+
+    // 3. El descarte toma el usuario del token, no del cuerpo.
+    let (estado, respuesta) = api
+        .post(
+            "/descartes",
+            Some(&token_encargado),
+            &json!({
+                "fecha": hoy,
+                "lote_id": lote,
+                "producto_id": PRODUCTO_PAN,
+                "unidades": 2,
+                "motivo": "danado",
+                "creado_en": creado_ahora(),
+                "usuario": "otra-persona"
+            }),
+        )
+        .await;
+    assert_eq!(estado, StatusCode::CREATED);
+    assert_eq!(respuesta["usuario"].as_str(), Some(encargado.as_str()));
+
+    let descarte = respuesta["_id"]
+        .as_str()
+        .expect("_id del descarte")
+        .to_string();
+
+    let (estado, respuesta) = api
+        .get(&format!("/descartes?fecha={hoy}"), Some(&token_encargado))
+        .await;
+    assert_eq!(estado, StatusCode::OK);
+    assert!(
+        respuesta["descartes"]
+            .as_array()
+            .expect("lista de descartes")
+            .iter()
+            .any(|documento| documento["_id"] == descarte.as_str())
+    );
+
+    let (estado, _) = api
+        .get(&format!("/descartes?fecha={hoy}"), Some(&token_cajero))
+        .await;
+    assert_eq!(estado, StatusCode::FORBIDDEN);
+
+    // 4. GET /cierre muestra el día abierto y la producción por producto.
+    let (estado, respuesta) = api
+        .get(&format!("/cierre?fecha={hoy}"), Some(&token_encargado))
+        .await;
+    assert_eq!(estado, StatusCode::OK);
+    assert_eq!(respuesta["cerrado"], false);
+    assert!(
+        respuesta["por_producto"]
+            .as_array()
+            .expect("vista previa por producto")
+            .iter()
+            .any(|producto| producto["producto_id"] == PRODUCTO_PAN)
+    );
+
+    let (estado, _) = api
+        .get(&format!("/cierre?fecha={hoy}"), Some(&token_cajero))
+        .await;
+    assert_eq!(estado, StatusCode::FORBIDDEN);
+
+    // 5. Limpieza.
+    db.delete("panaderia", &lote).await;
+    db.delete("panaderia", &descarte).await;
+    db.borrar_usuario(&encargado).await;
+    db.borrar_usuario(&cajero).await;
+}
