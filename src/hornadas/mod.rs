@@ -42,7 +42,7 @@ mod dominio;
 
 use std::sync::Arc;
 
-use axum::{Router, routing::post};
+use axum::{Router, routing::get};
 
 // Importado de la configuración general (no se modifica, solo se usa).
 use crate::config::Config;
@@ -77,6 +77,6 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     .expect("Configuración de CouchDB inválida");
 
     Router::new()
-        .route("/hornadas", post(api::crear_hornada))
+        .route("/hornadas", get(api::listar_hornadas).post(api::crear_hornada))
         .with_state(Arc::new(EstadoHornadas { couch }))
 }

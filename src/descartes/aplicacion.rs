@@ -40,3 +40,22 @@ pub async fn registrar_descarte(
 
     Ok(descarte)
 }
+
+/// Caso de uso: listar los descartes de un día (`AAAA-MM-DD`).
+pub async fn listar_descartes(
+    client: &Client,
+    couchdb_url: &str,
+    usuario_couchdb: &str,
+    contrasena_couchdb: &str,
+    fecha: &str,
+) -> Result<Vec<Descarte>, ErrorDescarte> {
+    couchdb::listar_descartes(
+        client,
+        couchdb_url,
+        usuario_couchdb,
+        contrasena_couchdb,
+        fecha,
+    )
+    .await
+    .map_err(ErrorDescarte::NoDisponible)
+}

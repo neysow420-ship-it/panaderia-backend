@@ -5,7 +5,7 @@ mod dominio;
 
 use std::sync::Arc;
 
-use axum::{Router, routing::post};
+use axum::{Router, routing::get};
 
 use crate::config::Config;
 use couchdb::CouchDb;
@@ -26,6 +26,9 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     .expect("Configuración de CouchDB inválida");
 
     Router::new()
-        .route("/cierre", post(api::crear_cierre))
+        .route(
+            "/cierre",
+            get(api::obtener_cierre).post(api::crear_cierre),
+        )
         .with_state(Arc::new(EstadoCierres { couch }))
 }

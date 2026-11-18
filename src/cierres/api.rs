@@ -2,18 +2,87 @@ use std::sync::Arc;
 
 use axum::{
     Extension, Json,
-    extract::{State, rejection::JsonRejection},
+    extract::{Query, State, rejection::JsonRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::{FixedOffset, Utc};
+use chrono::{FixedOffset, NaiveDate, Utc};
+use serde::Deserialize;
 use serde_json::json;
 
 use crate::api::autenticacion::{Rol, Usuario};
 
 use super::EstadoCierres;
-use super::aplicacion::{ErrorCierre, ResultadoCierre, cerrar_dia};
+use super::aplicacion::{ErrorCierre, ResultadoCierre, cerrar_dia, previsualizar_dia};
 use super::dominio::{Cierre, ErrorCampo, SolicitudCierre};
+
+/// `GET /cierre?fecha=AAAA-MM-DD`.
+///
+/// Devuelve el estado del día: si ya está cerrado, el documento oficial, y la
+/// vista previa por producto (producido y vendido) para llenar el formulario.
+pub async fn obtener_cierre(
+    State(estado): State<Arc<EstadoCierres>>,
+    Extension(usuario): Extension<Usuario>,
+    filtro: Result<Query<FiltroFecha>, axum::extract::rejection::QueryRejection>,
+) -> Response {
+    if let Some(respuesta) = exigir_encargado(&usuario) {
+        return respuesta;
+    }
+
+    let Query(filtro) = match filtro {
+        Ok(filtro) => filtro,
+        Err(_) => {
+            return error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "solicitud_invalida",
+                vec![ErrorCampo::new(
+                    "fecha",
+                    "Indica la fecha con formato AAAA-MM-DD",
+                )],
+            );
+        }
+    };
+
+    let preview = match previsualizar_dia(&estado.couch, filtro.fecha).await {
+        Ok(preview) => preview,
+        Err(ErrorCierre::Validacion(errores)) => {
+            return error(StatusCode::UNPROCESSABLE_ENTITY, "validacion", errores);
+        }
+        Err(fallo) => {
+            eprintln!("GET /cierre: {fallo:?}");
+            return error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![]);
+        }
+    };
+
+    let cierre: Option<Cierre> = if preview.cerrado {
+        match estado.couch.leer_cierre(filtro.fecha).await {
+            Ok(cierre) => cierre,
+            Err(detalle) => {
+                eprintln!("GET /cierre: no se pudo leer el cierre: {detalle:?}");
+                return error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![]);
+            }
+        }
+    } else {
+        None
+    };
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "fecha": preview.fecha,
+            "cerrado": preview.cerrado,
+            "cierre": cierre,
+            "por_producto": preview.por_producto,
+        })),
+    )
+        .into_response()
+}
+
+/// Filtro `?fecha=AAAA-MM-DD`.
+#[derive(Deserialize)]
+pub struct FiltroFecha {
+    pub fecha: NaiveDate,
+}
 
 /// POST /cierre. Solo el encargado puede cerrar el día.
 pub async fn crear_cierre(
@@ -22,18 +91,8 @@ pub async fn crear_cierre(
     cuerpo: Result<Json<SolicitudCierre>, JsonRejection>,
 ) -> Response {
     // 1. Verificar permisos.
-    match usuario.rol {
-        Rol::Encargado => {}
-        Rol::Cajero => {
-            return error(
-                StatusCode::FORBIDDEN,
-                "prohibido",
-                vec![ErrorCampo::new(
-                    "rol",
-                    "Solo el encargado puede cerrar el día",
-                )],
-            );
-        }
+    if let Some(respuesta) = exigir_encargado(&usuario) {
+        return respuesta;
     }
 
     // 2. Interpretar el JSON.
@@ -79,6 +138,21 @@ pub async fn crear_cierre(
             eprintln!("POST /cierre: dependencia no disponible: {detalle}");
             error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![])
         }
+    }
+}
+
+/// Devuelve `403` si el usuario no es encargado.
+fn exigir_encargado(usuario: &Usuario) -> Option<Response> {
+    match usuario.rol {
+        Rol::Encargado => None,
+        Rol::Cajero => Some(error(
+            StatusCode::FORBIDDEN,
+            "prohibido",
+            vec![ErrorCampo::new(
+                "rol",
+                "Solo el encargado puede cerrar o consultar el día",
+            )],
+        )),
     }
 }
 
