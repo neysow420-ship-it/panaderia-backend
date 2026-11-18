@@ -106,12 +106,8 @@ impl CouchDb {
     /// Lee `panaderia/cierre:{fecha}` sin pasar por el trait.
     ///
     /// Lo usa `GET /cierre` para saber si el día ya se cerró.
-    pub async fn leer_cierre(
-        &self,
-        fecha: NaiveDate,
-    ) -> Result<Option<Cierre>, ErrorRepositorio> {
-        self.obtener(BD_PANADERIA, &format!("cierre:{fecha}"))
-            .await
+    pub async fn leer_cierre(&self, fecha: NaiveDate) -> Result<Option<Cierre>, ErrorRepositorio> {
+        self.obtener(BD_PANADERIA, &format!("cierre:{fecha}")).await
     }
 
     /// Lee los documentos de un tipo mediante el rango de sus identificadores.

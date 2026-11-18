@@ -836,7 +836,11 @@ async fn lecturas_del_dia_y_permisos_de_produccion() {
     // 1. El encargado registra una hornada.
     let operacion = ulid();
     let (estado, respuesta) = api
-        .post("/hornadas", Some(&token_encargado), &hornada_body(&operacion))
+        .post(
+            "/hornadas",
+            Some(&token_encargado),
+            &hornada_body(&operacion),
+        )
         .await;
     assert_eq!(estado, StatusCode::CREATED);
 

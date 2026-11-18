@@ -77,6 +77,9 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     .expect("Configuración de CouchDB inválida");
 
     Router::new()
-        .route("/hornadas", get(api::listar_hornadas).post(api::crear_hornada))
+        .route(
+            "/hornadas",
+            get(api::listar_hornadas).post(api::crear_hornada),
+        )
         .with_state(Arc::new(EstadoHornadas { couch }))
 }

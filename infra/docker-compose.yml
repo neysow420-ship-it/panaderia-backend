@@ -31,13 +31,26 @@ services:
       AUTH_MODE: ${AUTH_MODE:?Falta AUTH_MODE en .env}
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
+      # Importación directa desde Gmail, deshabilitada por defecto.
+      FACTURAS_IMPORTACION_CLAVE: ${FACTURAS_IMPORTACION_CLAVE:-}
+      FACTURAS_GMAIL_ACTIVO: ${FACTURAS_GMAIL_ACTIVO:-false}
+      FACTURAS_GMAIL_BUZON: ${FACTURAS_GMAIL_BUZON:-}
+      FACTURAS_GMAIL_REMITENTE: ${FACTURAS_GMAIL_REMITENTE:-}
+      FACTURAS_GMAIL_CLIENT_ID: ${FACTURAS_GMAIL_CLIENT_ID:-}
+      FACTURAS_GMAIL_CLIENT_SECRET: ${FACTURAS_GMAIL_CLIENT_SECRET:-}
+      FACTURAS_GMAIL_REFRESH_TOKEN: ${FACTURAS_GMAIL_REFRESH_TOKEN:-}
+    ports:
+      # Host: PORT del .env (5000). Dentro del contenedor siempre 3000.
+      - "${PORT:-5000}:3000"
     depends_on:
       couchdb:
         condition: service_healthy
 
+  # Solo para HTTPS en la VM. En local no arranca.
   caddy:
     image: caddy:2
     container_name: panaderia-caddy
+    profiles: ["https"]
     restart: unless-stopped
     ports:
       - "80:80"

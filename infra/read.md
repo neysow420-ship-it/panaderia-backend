@@ -21,7 +21,7 @@ Requisitos: Docker con el motor iniciado.
 5. Levanta la API y Caddy:
    `docker compose --env-file .env -f infra/docker-compose.yml up -d --build api caddy`
 6. Comprueba la API:
-   `curl http://localhost:3000/salud`
+   `curl http://localhost:5000/salud`
 7. Abre el panel de CouchDB: `http://localhost:<COUCHDB_PORT>/_utils` e inicia
    sesión con tu usuario y contraseña del `.env`.
 8. Apagar (conserva los datos): `docker compose --env-file .env -f infra/docker-compose.yml down`

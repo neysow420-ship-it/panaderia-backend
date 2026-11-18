@@ -2,6 +2,7 @@ mod api;
 mod cierres;
 mod config;
 mod descartes;
+mod facturas;
 mod hornadas;
 mod productos;
 mod reportes;
@@ -14,7 +15,7 @@ use std::sync::Arc;
 use api::autenticacion::{Usuario, autenticar};
 use axum::{
     Extension, Json, Router,
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{HeaderValue, Method, StatusCode, header},
     middleware,
     routing::{get, post},
@@ -115,6 +116,10 @@ async fn main() {
     // /salud es pública; las rutas protegidas pasan por el middleware.
     let protegidas = Router::new()
         .route("/api/yo", get(yo))
+        .route(
+            "/facturas",
+            get(facturas::listar).with_state(estado.clone()),
+        )
         .merge(rutas_ventas)
         .merge(rutas_productos)
         .merge(rutas_descartes)
@@ -124,8 +129,14 @@ async fn main() {
         .merge(rutas_reportes)
         .route_layer(middleware::from_fn_with_state(estado.clone(), autenticar));
 
+    facturas::iniciar_worker(estado.clone());
+
     let app: Router = Router::new()
         .route("/salud", get(salud))
+        .route(
+            "/facturas/importar",
+            post(facturas::importar).layer(DefaultBodyLimit::max(facturas::MAX_ADJUNTO)),
+        )
         .route("/auth/login", post(api::autenticacion::iniciar_sesion))
         .merge(protegidas)
         .with_state(estado)

@@ -26,9 +26,6 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     .expect("Configuración de CouchDB inválida");
 
     Router::new()
-        .route(
-            "/cierre",
-            get(api::obtener_cierre).post(api::crear_cierre),
-        )
+        .route("/cierre", get(api::obtener_cierre).post(api::crear_cierre))
         .with_state(Arc::new(EstadoCierres { couch }))
 }

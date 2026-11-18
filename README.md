@@ -65,9 +65,9 @@ Fase 4 en desarrollo. Ya están implementados:
    ```bash
    docker compose --env-file .env -f infra/docker-compose.yml up -d --build api caddy
    ```
-5. Comprueba `GET http://localhost:3000/salud` y el login:
+5. Comprueba `GET http://localhost:5000/salud` y el login:
    ```bash
-   curl -X POST http://localhost:3000/auth/login \
+   curl -X POST http://localhost:5000/auth/login \
      -H 'Content-Type: application/json' \
      -d '{"usuario":"101","contrasena":"<CAJERO_PASSWORD>"}'
    ```
@@ -95,6 +95,21 @@ Compose. En el servidor deben configurarse `AUTH_MODE=activo`, `JWT_SECRET`,
 `CORS_ORIGINS` con el dominio del frontend y las contraseñas de los usuarios de
 aplicación. El procedimiento está en `docs/decisiones/autenticacion.md`.
 
+### Actualizar una instalación existente
+
+Desde la raíz del repositorio en el servidor Ubuntu, conserva el archivo
+`.env` y ejecuta:
+
+```bash
+git pull --ff-only origin main &&
+  docker compose --env-file .env -f infra/docker-compose.yml up -d --build --no-deps api &&
+  curl -fsS --retry 10 --retry-connrefused --retry-delay 2 https://panaderia-api.duckdns.org/salud
+```
+
+Esta actualización reconstruye la API y conserva los contenedores de CouchDB
+y Caddy, junto con sus volúmenes. Las opciones de importación de facturas
+son opcionales y se configuran en el mismo `.env`.
+
 ## Calidad del código
 
 La integración continua verifica formato, Clippy, datos canónicos, pruebas
@@ -104,3 +119,80 @@ unitarias y pruebas de integración contra un CouchDB de servicio.
 
 Los cambios se proponen mediante Pull Requests hacia `main` y deben cumplir las
 reglas de revisión y las comprobaciones automatizadas del repositorio.
+
+## Importar facturas desde Gmail
+
+El backend puede revisar cada minuto un buzón dedicado con Gmail API. Crea en
+ese buzón la etiqueta `facturas-panaderia` y aplícala al correo de prueba.
+Solo se consultan correos de la dirección configurada en
+`FACTURAS_GMAIL_REMITENTE` que tengan esa etiqueta y un adjunto
+`factura.json`. Aplica la etiqueta a correos cuya procedencia hayas verificado.
+
+Envía exactamente un adjunto con ese nombre, de hasta 16 KiB. Este es el
+contrato inicial:
+
+```json
+{
+  "numero": "FAC-0001",
+  "proveedor": "Molinos del Sur",
+  "fecha": "2026-11-18",
+  "lineas": [
+    { "sku": "harina-50kg", "descripcion": "Harina de trigo", "cantidad": 4, "costo_unitario": 28.5 },
+    { "sku": "azucar-25kg", "descripcion": "Azúcar", "cantidad": 2, "costo_unitario": 21.0 }
+  ]
+}
+```
+
+Todos los campos son obligatorios y se rechazan campos adicionales. El total
+se calcula sumando los subtotales de las líneas. Envía al menos una línea con
+cantidad entera positiva y costo unitario positivo en USD, con hasta dos
+decimales y un máximo de USD 10 000 000 000 por unidad. La API devuelve también `total_centavos` (15600 en este ejemplo).
+Usa la misma escritura del nombre del proveedor en cada envío. En CouchDB, el proveedor y el número identifican una factura.
+Un reenvío idéntico no la duplica. Si ya existe esa combinación con otros datos,
+el worker registra el conflicto y conserva la factura guardada.
+
+1. Habilita la [Gmail API](https://developers.google.com/workspace/guides/enable-apis)
+   en un proyecto de Google Cloud.
+2. Autoriza el buzón con un cliente OAuth 2.0 y solicita acceso sin conexión
+   con el permiso `https://www.googleapis.com/auth/gmail.readonly`.
+   Consulta cómo obtener el refresh token en la
+   [guía de OAuth de Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline).
+   Para una prueba, también puedes usar
+   [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/)
+   con tus propias credenciales. Ese flujo requiere un cliente web con
+   `https://developers.google.com/oauthplayground` como URI de redirección.
+3. Guarda en el `.env` local el buzón, el remitente, el ID y secreto del
+   cliente OAuth y el refresh token, usando las variables
+   `FACTURAS_GMAIL_*` de `.env.example`. Configura
+   `FACTURAS_GMAIL_ACTIVO=true` y reinicia el backend con `cargo run`
+   o vuelve a levantar el servicio `api` con Docker Compose.
+4. Envía el correo de prueba, aplícale la etiqueta y consulta las facturas
+   con el token JWT de un encargado:
+
+   ```bash
+   curl -fsS http://localhost:5000/facturas \
+     -H "Authorization: Bearer $TOKEN_ENCARGADO"
+   ```
+
+   La respuesta contiene `facturas` (hasta 50 registros) y
+   `siguiente_offset`. Si el offset no es `null`, solicita la siguiente
+   página con `GET /facturas?offset=<siguiente_offset>`.
+
+### Alternativa con Google Apps Script
+
+Copia [el archivo del worker](scripts/facturas-apps-script.js) en `Code.gs` de
+un proyecto creado desde el Gmail de facturas. En **Servicios**, agrega
+**Gmail API**. Con el proyecto de Cloud predeterminado, Google habilita ese
+servicio al agregarlo desde Apps Script.
+
+En el servidor, genera una clave con `openssl rand -hex 32` y guárdala como
+`FACTURAS_IMPORTACION_CLAVE` en el `.env`. Reinicia el backend para servir
+`POST /facturas/importar`. En **Configuración del proyecto → Propiedades del
+script**, agrega esa misma clave, `API_URL` con la base HTTPS pública del
+backend y `REMITENTE` con la dirección que envía los adjuntos.
+
+Ejecuta manualmente `importarFacturas` y autoriza el acceso desde el buzón
+dedicado. Envía y etiqueta un correo de prueba. La etiqueta
+`facturas-importadas` se aplica después de que el backend guarda la factura
+o confirma un duplicado idéntico. Cuando la prueba funcione, crea un
+activador de tiempo para `importarFacturas`, por ejemplo cada cinco minutos.
