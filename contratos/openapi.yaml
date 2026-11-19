@@ -112,6 +112,36 @@ paths:
           $ref: '#/components/responses/Validacion'
         '503':
           $ref: '#/components/responses/NoDisponible'
+  /materiales:
+    get:
+      tags: [produccion]
+      summary: Consulta existencias de materiales por SKU (solo encargado)
+      responses:
+        '200':
+          description: Facturas menos consumos de hornadas, en millonésimas de la unidad facturada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [materiales]
+                properties:
+                  materiales:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [descripcion, saldo_millonesimas]
+                      properties:
+                        descripcion:
+                          type: string
+                        saldo_millonesimas:
+                          type: integer
+                          format: int64
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '403':
+          description: Requiere el rol de encargado
+        '503':
+          description: CouchDB no disponible
   /hornadas:
     post:
       tags: [produccion]
@@ -120,7 +150,9 @@ paths:
       description: |
         El ULID se genera al abrir el formulario y se reutiliza en los
         reintentos. Mismo ULID y misma huella devuelve `200`; otro contenido
-        devuelve `409`.
+        devuelve `409`. El producto requiere una receta. Si el saldo es
+        insuficiente, devuelve `409 materiales_insuficientes` salvo que el
+        encargado autorice la hornada con `permitir_faltantes`.
       requestBody:
         required: true
         content:
@@ -479,6 +511,10 @@ components:
         creado_local:
           type: string
           format: date-time
+        permitir_faltantes:
+          type: boolean
+          default: false
+          description: Autoriza guardar la hornada aunque algún saldo quede negativo.
         fecha_vencimiento:
           type: string
           format: date
@@ -513,6 +549,19 @@ components:
           format: date
         pronostico_id:
           type: string
+        permitir_faltantes:
+          type: boolean
+        consumo_materiales:
+          type: array
+          items:
+            type: object
+            required: [sku, millonesimas]
+            properties:
+              sku:
+                type: string
+              millonesimas:
+                type: integer
+                format: int64
     RespuestaHornada:
       type: object
       required: [ya_procesada, hornada]

@@ -202,6 +202,30 @@ impl CouchDb {
         Ok(documentos)
     }
 
+    pub async fn inventario(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, crate::materiales::Existencia>, ErrorRepositorio>
+    {
+        let facturas = self
+            .listar_por_prefijo(BD_PANADERIA, "factura:", "factura")
+            .await?;
+        #[derive(Deserialize)]
+        struct Consumo {
+            #[serde(default)]
+            consumo_materiales: Vec<crate::materiales::Ingrediente>,
+        }
+        let hornadas: Vec<Consumo> = self
+            .listar_por_prefijo(BD_PANADERIA, "hornada:", "hornada")
+            .await?;
+        crate::materiales::calcular(
+            facturas,
+            hornadas.into_iter().flat_map(|doc| doc.consumo_materiales),
+        )
+        .ok_or_else(|| {
+            ErrorRepositorio::NoDisponible("Desbordamiento del saldo de materiales".into())
+        })
+    }
+
     /// Lista las hornadas de un día, ordenadas por hora de creación.
     ///
     /// La pantalla de Producción y la vista previa del Cierre necesitan
@@ -232,6 +256,13 @@ fn no_disponible(e: reqwest::Error) -> ErrorRepositorio {
 
 /// Lo que el caso de uso le pide a la base, hecho con CouchDB.
 impl RepositorioHornadas for CouchDb {
+    async fn inventario(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, crate::materiales::Existencia>, ErrorRepositorio>
+    {
+        self.inventario().await
+    }
+
     /// Lee `panaderia/hornada:{ULID}`.
     async fn obtener_hornada(&self, id: &str) -> Result<Option<Hornada>, ErrorRepositorio> {
         self.obtener(BD_PANADERIA, id).await

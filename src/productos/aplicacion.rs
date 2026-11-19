@@ -184,7 +184,8 @@ pub async fn actualizar_producto<R: RepositorioProductos>(
         .obtener_producto(&id_producto(slug))
         .await?
         .ok_or(ErrorCatalogo::NoEncontrado)?;
-    let nuevo = construir_producto(slug, datos, existente.rev, existente.otros);
+    let mut nuevo = construir_producto(slug, datos, existente.rev, existente.otros);
+    nuevo.receta = nuevo.receta.or(existente.receta);
     repo.actualizar_producto(&nuevo).await?;
     Ok(nuevo)
 }
@@ -298,6 +299,7 @@ mod pruebas {
 
     fn datos(nombre: &str, precio: i64) -> DatosProducto {
         DatosProducto {
+            receta: None,
             nombre: nombre.into(),
             precio_centavos: precio,
             vida_util_dias: 1,
@@ -367,6 +369,7 @@ mod pruebas {
         repo.productos.lock().unwrap().insert(
             "producto:donas".into(),
             Producto {
+                receta: None,
                 id: "producto:donas".into(),
                 rev: Some("1-abc".into()),
                 tipo: "producto".into(),

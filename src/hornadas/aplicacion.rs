@@ -58,6 +58,15 @@ pub trait RepositorioHornadas {
         &self,
         hornada: &Hornada,
     ) -> impl Future<Output = Result<(), ErrorRepositorio>> + Send;
+    fn inventario(
+        &self,
+    ) -> impl Future<
+        Output = Result<
+            std::collections::BTreeMap<String, crate::materiales::Existencia>,
+            ErrorRepositorio,
+        >,
+    > + Send;
+
     /// Relación con **Producto y Config**: lee `catalogo/{producto_id}`.
     /// `Ok(None)` si el producto no existe.
     fn obtener_producto(
@@ -86,6 +95,7 @@ pub enum ErrorHornada {
     Validacion(Vec<ErrorCampo>),
     /// Ya existe una hornada con ese ULID pero con otro contenido → **409**.
     ConflictoOperacion,
+    MaterialesInsuficientes(Vec<ErrorCampo>),
     /// CouchDB no responde → **503** (el cliente reintenta más tarde).
     NoDisponible(String),
 }
@@ -144,8 +154,52 @@ pub async fn registrar_hornada<R: RepositorioHornadas>(
     };
 
     // ── Paso 4: armar el documento oficial y guardarlo ──
-    let hornada = construir_hornada(solicitud, &validada, &producto, usuario)
+    let mut hornada = construir_hornada(solicitud, &validada, &producto, usuario)
         .map_err(ErrorHornada::Validacion)?;
+
+    let receta = producto
+        .receta
+        .as_deref()
+        .filter(|receta| crate::materiales::receta_valida(receta))
+        .ok_or_else(|| {
+            ErrorHornada::Validacion(vec![ErrorCampo::new(
+                "receta",
+                "configura la receta del producto antes de fabricar",
+            )])
+        })?;
+    hornada.consumo_materiales = receta
+        .iter()
+        .map(|item| crate::materiales::Ingrediente {
+            sku: item.sku.clone(),
+            millonesimas: item.millonesimas * hornada.unidades,
+        })
+        .collect();
+
+    if !solicitud.permitir_faltantes {
+        let inventario = repo.inventario().await?;
+        let errores: Vec<_> = hornada
+            .consumo_materiales
+            .iter()
+            .filter_map(|item| {
+                let saldo = inventario
+                    .get(&item.sku)
+                    .map_or(0, |material| material.saldo_millonesimas);
+                (saldo < item.millonesimas).then(|| {
+                    ErrorCampo::new(
+                        &item.sku,
+                        &format!(
+                            "requiere {:.6}, saldo {:.6}",
+                            item.millonesimas as f64 / 1_000_000.0,
+                            saldo as f64 / 1_000_000.0
+                        ),
+                    )
+                })
+            })
+            .collect();
+        if !errores.is_empty() {
+            return Err(ErrorHornada::MaterialesInsuficientes(errores));
+        }
+    }
 
     match repo.crear_hornada(&hornada).await {
         // CouchDB confirmó: ahora sí se responde éxito.
@@ -207,6 +261,10 @@ mod pruebas {
                     (
                         id.to_string(),
                         ProductoCatalogo {
+                            receta: Some(vec![crate::materiales::Ingrediente {
+                                sku: "harina".into(),
+                                millonesimas: 1000,
+                            }]),
                             id: id.to_string(),
                             vida_util_dias: vida,
                         },
@@ -224,6 +282,21 @@ mod pruebas {
         async fn obtener_hornada(&self, id: &str) -> Result<Option<Hornada>, ErrorRepositorio> {
             Ok(self.hornadas.lock().unwrap().get(id).cloned())
         }
+        async fn inventario(
+            &self,
+        ) -> Result<
+            std::collections::BTreeMap<String, crate::materiales::Existencia>,
+            ErrorRepositorio,
+        > {
+            Ok(std::collections::BTreeMap::from([(
+                "harina".into(),
+                crate::materiales::Existencia {
+                    descripcion: "Harina".into(),
+                    saldo_millonesimas: 1_000_000_000,
+                },
+            )]))
+        }
+
         async fn crear_hornada(&self, hornada: &Hornada) -> Result<(), ErrorRepositorio> {
             if let Some(otra) = self.carrera.lock().unwrap().take() {
                 self.hornadas.lock().unwrap().insert(otra.id.clone(), otra);
@@ -248,6 +321,7 @@ mod pruebas {
 
     fn solicitud(unidades: i64) -> SolicitudHornada {
         SolicitudHornada {
+            permitir_faltantes: false,
             operacion_id: "01J9ZK5A2B3C4D5E6F7G8H9J0K".into(),
             producto_id: "producto:pan-frances".into(),
             unidades,

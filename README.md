@@ -120,6 +120,46 @@ unitarias y pruebas de integración contra un CouchDB de servicio.
 Los cambios se proponen mediante Pull Requests hacia `main` y deben cumplir las
 reglas de revisión y las comprobaciones automatizadas del repositorio.
 
+## Inventario de producción
+
+En **Producción → Recetas**, abre un producto existente o crea uno nuevo.
+Cada material se identifica por el mismo `sku` que aparece en la factura.
+Introduce en la receta cuánto consume **una unidad de producto**, medido en
+la unidad que se factura. Por ejemplo, si se factura un saco de 50 kg con
+`sku: harina-50kg`, 50 g por pan equivalen a 0.001 sacos por pan.
+
+El documento del producto en CouchDB guarda la receta con cantidades enteras
+en millonésimas para evitar redondeos:
+
+```json
+{
+  "_id": "producto:pan-integral",
+  "tipo": "producto",
+  "nombre": "Pan integral",
+  "precio_centavos": 75,
+  "vida_util_dias": 2,
+  "activo": true,
+  "receta": [
+    { "sku": "harina-50kg", "millonesimas": 1000 }
+  ]
+}
+```
+
+**Producción → Materiales** muestra las unidades facturadas menos el consumo
+de las hornadas. La pantalla se actualiza cada 30 segundos y al registrar una
+hornada. **Facturas** permite revisar los comprobantes y sus líneas.
+
+Si faltan materiales, la API rechaza la hornada salvo que el encargado seleccione
+**Registrar con faltantes**. Esa hornada deja un saldo negativo. La siguiente
+factura del mismo SKU suma su cantidad y compensa el saldo pendiente.
+Las facturas existentes se incluyen en el cálculo. Las hornadas históricas sin
+receta guardada conservan su historial sin imputarles cantidades por estimación.
+Antes de registrar una hornada nueva, configura la receta del producto.
+
+El despliegue con Docker Compose utiliza una instancia de la API. Esa instancia
+serializa el registro de hornadas para que dos solicitudes no gasten el mismo
+saldo simultáneamente.
+
 ## Importar facturas desde Gmail
 
 El backend puede revisar cada minuto un buzón dedicado con Gmail API. Crea en

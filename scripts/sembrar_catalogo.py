@@ -67,7 +67,7 @@ def desactivar_productos_fuera_del_catalogo(base: str, ids_canonicos: set[str]) 
     """Deja inactivos los productos que ya no están en el catálogo canónico.
 
     No los borra: las ventas y cierres históricos guardan su `producto_id`.
-    Así el catálogo activo queda exactamente con los productos sembrados.
+    Los productos creados para producción se conservan cuando tienen receta.
     """
     estado, respuesta = pedir(
         "GET", f"{base}/catalogo/_all_docs?include_docs=true"
@@ -79,7 +79,7 @@ def desactivar_productos_fuera_del_catalogo(base: str, ids_canonicos: set[str]) 
         doc = fila.get("doc") or {}
         if doc.get("tipo") != "producto" or doc.get("_id") in ids_canonicos:
             continue
-        if doc.get("activo") is False:
+        if doc.get("activo") is False or doc.get("receta"):
             continue
 
         doc["activo"] = False

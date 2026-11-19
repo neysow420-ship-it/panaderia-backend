@@ -56,6 +56,7 @@ use couchdb::CouchDb;
 struct EstadoHornadas {
     /// Conexión a CouchDB.
     couch: CouchDb,
+    registro: tokio::sync::Mutex<()>,
 }
 
 /// Prepara las rutas de hornadas. Se llama una vez al arrancar desde `main.rs`.
@@ -81,5 +82,9 @@ pub fn rutas<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
             "/hornadas",
             get(api::listar_hornadas).post(api::crear_hornada),
         )
-        .with_state(Arc::new(EstadoHornadas { couch }))
+        .route("/materiales", get(api::listar_materiales))
+        .with_state(Arc::new(EstadoHornadas {
+            couch,
+            registro: tokio::sync::Mutex::new(()),
+        }))
 }

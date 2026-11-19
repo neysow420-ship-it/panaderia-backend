@@ -21,12 +21,12 @@
 //!
 //! Relación con **Login**: las rutas van dentro de las protegidas de `main.rs`,
 //! así que antes de llegar aquí pasan por el middleware de autenticación.
-//! (Todavía no se distingue el rol: cualquier usuario autenticado puede editar.)
+//! La creación y edición de productos requieren el rol de encargado.
 
 use std::sync::Arc;
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State, rejection::JsonRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -37,6 +37,7 @@ use serde_json::json;
 use super::EstadoProductos;
 use super::aplicacion::{self, ErrorCatalogo};
 use super::dominio::{DatosProducto, ErrorCampo, SolicitudConfig, SolicitudCrearProducto};
+use crate::api::autenticacion::{Rol, Usuario};
 
 /// Parámetros opcionales de `GET /productos`.
 #[derive(Deserialize)]
@@ -81,8 +82,12 @@ pub async fn obtener(
 /// si el JSON viene mal, en vez del mensaje por defecto de Axum.
 pub async fn crear(
     State(estado): State<Arc<EstadoProductos>>,
+    Extension(usuario): Extension<Usuario>,
     cuerpo: Result<Json<SolicitudCrearProducto>, JsonRejection>,
 ) -> Response {
+    if !matches!(usuario.rol, Rol::Encargado) {
+        return error(StatusCode::FORBIDDEN, "prohibido", vec![]);
+    }
     let Json(solicitud) = match cuerpo {
         Ok(c) => c,
         Err(rechazo) => return json_invalido(rechazo),
@@ -100,8 +105,12 @@ pub async fn crear(
 pub async fn actualizar(
     State(estado): State<Arc<EstadoProductos>>,
     Path(slug): Path<String>,
+    Extension(usuario): Extension<Usuario>,
     cuerpo: Result<Json<DatosProducto>, JsonRejection>,
 ) -> Response {
+    if !matches!(usuario.rol, Rol::Encargado) {
+        return error(StatusCode::FORBIDDEN, "prohibido", vec![]);
+    }
     let Json(datos) = match cuerpo {
         Ok(c) => c,
         Err(rechazo) => return json_invalido(rechazo),

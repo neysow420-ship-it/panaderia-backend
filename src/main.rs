@@ -4,6 +4,7 @@ mod config;
 mod descartes;
 mod facturas;
 mod hornadas;
+mod materiales;
 mod productos;
 mod reportes;
 mod vencimientos;

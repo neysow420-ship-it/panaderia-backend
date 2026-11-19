@@ -92,6 +92,8 @@ fn verdadero() -> bool {
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Producto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receta: Option<Vec<crate::materiales::Ingrediente>>,
     /// `_id` en CouchDB: `producto:{slug}`. Es el `producto_id` que usan las demás partes.
     #[serde(rename = "_id")]
     pub id: String,
@@ -118,6 +120,8 @@ pub struct Producto {
 /// Datos editables de un producto (lo que manda el cliente al editar).
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct DatosProducto {
+    #[serde(default)]
+    pub receta: Option<Vec<crate::materiales::Ingrediente>>,
     /// Nombre para mostrar, ej. `Pan francés`.
     pub nombre: String,
     /// Precio de venta en centavos.
@@ -199,6 +203,14 @@ impl DatosProducto {
                 &format!("debe estar entre 1 y {MAX_VIDA_UTIL_DIAS} días"),
             ));
         }
+        if let Some(receta) = &self.receta
+            && !crate::materiales::receta_valida(receta)
+        {
+            errores.push(ErrorCampo::new(
+                "receta",
+                "indica entre 1 y 50 SKU distintos con cantidades válidas",
+            ));
+        }
         errores
     }
 }
@@ -213,6 +225,7 @@ pub fn construir_producto(
     otros: Map<String, Value>,
 ) -> Producto {
     Producto {
+        receta: datos.receta.clone(),
         id: id_producto(slug),
         rev,
         tipo: "producto".to_string(),
@@ -361,6 +374,7 @@ mod pruebas {
 
     fn datos() -> DatosProducto {
         DatosProducto {
+            receta: None,
             nombre: "Pan francés".into(),
             precio_centavos: 10,
             vida_util_dias: 1,
@@ -399,6 +413,7 @@ mod pruebas {
     fn valida_datos_de_producto() {
         assert!(datos().validar().is_empty());
         let mal = DatosProducto {
+            receta: None,
             nombre: "   ".into(),
             precio_centavos: 0,
             vida_util_dias: 400,

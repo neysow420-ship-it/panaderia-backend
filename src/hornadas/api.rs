@@ -80,7 +80,14 @@ pub async fn crear_hornada(
     let nombre_usuario = usuario.nombre;
     // 4. Hora actual en El Salvador y ejecución del caso de uso.
     let ahora = Utc::now().with_timezone(&zona_negocio());
-    let resultado = registrar_hornada(&estado.couch, &solicitud, &nombre_usuario, ahora).await;
+    // Una sola instancia de la API serializa las altas: dos hornadas no
+    // pueden validar contra el mismo saldo antes de persistir su consumo.
+    let resultado = tokio::spawn(async move {
+        let _registro = estado.registro.lock().await;
+        registrar_hornada(&estado.couch, &solicitud, &nombre_usuario, ahora).await
+    })
+    .await
+    .unwrap_or_else(|fallo| Err(ErrorHornada::NoDisponible(fallo.to_string())));
 
     // 5. Traducir el resultado a código HTTP y JSON.
     match resultado {
@@ -88,6 +95,9 @@ pub async fn crear_hornada(
         Ok(ResultadoHornada::YaProcesada(h)) => exito(StatusCode::OK, h, true),
         Err(ErrorHornada::Validacion(errores)) => {
             error(StatusCode::UNPROCESSABLE_ENTITY, "validacion", errores)
+        }
+        Err(ErrorHornada::MaterialesInsuficientes(errores)) => {
+            error(StatusCode::CONFLICT, "materiales_insuficientes", errores)
         }
         Err(ErrorHornada::ConflictoOperacion) => error(
             StatusCode::CONFLICT,
@@ -170,6 +180,22 @@ pub async fn listar_hornadas(
         }
         Err(detalle) => {
             eprintln!("GET /hornadas: base no disponible: {detalle:?}");
+            error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![])
+        }
+    }
+}
+
+pub async fn listar_materiales(
+    State(estado): State<Arc<EstadoHornadas>>,
+    Extension(usuario): Extension<Usuario>,
+) -> Response {
+    if !matches!(usuario.rol, Rol::Encargado) {
+        return error(StatusCode::FORBIDDEN, "prohibido", vec![]);
+    }
+    match estado.couch.inventario().await {
+        Ok(materiales) => Json(json!({"materiales": materiales})).into_response(),
+        Err(fallo) => {
+            eprintln!("GET /materiales: {fallo:?}");
             error(StatusCode::SERVICE_UNAVAILABLE, "no_disponible", vec![])
         }
     }

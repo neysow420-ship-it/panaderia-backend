@@ -108,6 +108,7 @@ fn hornada_body(operacion_id: &str) -> Value {
         "operacion_id": operacion_id,
         "producto_id": PRODUCTO_PAN,
         "unidades": 25,
+        "permitir_faltantes": true,
         "creado_local": creado_ahora()
     })
 }
@@ -261,7 +262,8 @@ impl Db {
                     "nombre": nombre,
                     "precio_centavos": precio,
                     "vida_util_dias": vida,
-                    "activo": true
+                    "activo": true,
+                    "receta": [{"sku": "harina-pruebas", "millonesimas": 1000}]
                 }),
             )
             .await;
@@ -334,6 +336,7 @@ impl Api {
             .env("PORT", puerto.to_string())
             .env("AUTH_MODE", auth_mode)
             .env("JWT_SECRET", JWT_PRUEBAS)
+            .env("FACTURAS_IMPORTACION_CLAVE", "clave-importacion-pruebas")
             .env("CORS_ORIGINS", cors.unwrap_or("http://localhost:5173"))
             .stdout(Stdio::from(archivo))
             .stderr(Stdio::from(archivo_error))
@@ -444,8 +447,8 @@ async fn salud_login_y_cors() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let usuario = nombre_unico("cajero");
-    let contrasena = "contrasena-de-prueba-123";
+    let usuario = "910".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&usuario, "cajero", contrasena).await;
 
     let api = Api::iniciar(&entorno, "activo", Some("https://panaderia.duckdns.org")).await;
@@ -454,7 +457,7 @@ async fn salud_login_y_cors() {
     assert_eq!(estado, StatusCode::OK);
     assert_eq!(cuerpo["estado"], "ok");
 
-    let (estado, _) = api.login(&usuario, "contrasena-equivocada").await;
+    let (estado, _) = api.login(&usuario, "0000").await;
     assert_eq!(estado, StatusCode::UNAUTHORIZED);
 
     let (estado, respuesta) = api.login(&usuario, contrasena).await;
@@ -528,9 +531,9 @@ async fn permisos_por_rol() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let cajero = nombre_unico("cajero");
-    let encargado = nombre_unico("encargado");
-    let contrasena = "contrasena-de-prueba-123";
+    let cajero = "911".to_string();
+    let encargado = "912".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&cajero, "cajero", contrasena).await;
     db.crear_usuario(&encargado, "encargado", contrasena).await;
 
@@ -540,6 +543,13 @@ async fn permisos_por_rol() {
     let token_cajero = token_de(&respuesta);
     let (_, respuesta) = api.login(&encargado, contrasena).await;
     let token_encargado = token_de(&respuesta);
+
+    let (estado, _) = api.get("/materiales", Some(&token_cajero)).await;
+    assert_eq!(estado, StatusCode::FORBIDDEN);
+    let (estado, _) = api
+        .post("/productos", Some(&token_cajero), &json!({}))
+        .await;
+    assert_eq!(estado, StatusCode::FORBIDDEN);
 
     let operacion_venta = ulid();
     let (estado, _) = api
@@ -603,8 +613,8 @@ async fn venta_idempotente_y_centavos() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let cajero = nombre_unico("cajero");
-    let contrasena = "contrasena-de-prueba-123";
+    let cajero = "913".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&cajero, "cajero", contrasena).await;
 
     let api = Api::iniciar(&entorno, "activo", None).await;
@@ -654,8 +664,8 @@ async fn validaciones_de_venta_son_422() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let cajero = nombre_unico("cajero");
-    let contrasena = "contrasena-de-prueba-123";
+    let cajero = "914".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&cajero, "cajero", contrasena).await;
 
     let api = Api::iniciar(&entorno, "activo", None).await;
@@ -711,8 +721,8 @@ async fn venta_de_dia_cerrado_conserva_fecha_original() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let cajero = nombre_unico("cajero");
-    let contrasena = "contrasena-de-prueba-123";
+    let cajero = "915".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&cajero, "cajero", contrasena).await;
 
     let fecha_vieja = "2020-01-02";
@@ -820,9 +830,9 @@ async fn lecturas_del_dia_y_permisos_de_produccion() {
     let db = Db::new(&entorno);
     db.preparar_catalogo().await;
 
-    let encargado = nombre_unico("encargado");
-    let cajero = nombre_unico("cajero");
-    let contrasena = "contrasena-de-prueba-123";
+    let encargado = "916".to_string();
+    let cajero = "917".to_string();
+    let contrasena = "7362";
     db.crear_usuario(&encargado, "encargado", contrasena).await;
     db.crear_usuario(&cajero, "cajero", contrasena).await;
 
@@ -934,4 +944,91 @@ async fn lecturas_del_dia_y_permisos_de_produccion() {
     db.delete("panaderia", &descarte).await;
     db.borrar_usuario(&encargado).await;
     db.borrar_usuario(&cajero).await;
+}
+
+#[tokio::test]
+async fn una_factura_compensa_los_materiales_pendientes_sin_duplicarlos() {
+    let Some(entorno) = entorno() else {
+        return;
+    };
+    let db = Db::new(&entorno);
+    let api = Api::iniciar(&entorno, "desactivado", None).await;
+    let sku = nombre_unico("harina");
+    let slug = nombre_unico("pan");
+    let producto_id = format!("producto:{slug}");
+    let (estado, _) = api
+        .post(
+            "/productos",
+            None,
+            &json!({
+                "slug": slug, "nombre": "Pan integral", "precio_centavos": 75,
+                "vida_util_dias": 2, "receta": [{"sku": sku, "millonesimas": 250000}],
+            }),
+        )
+        .await;
+    assert_eq!(estado, StatusCode::CREATED);
+
+    let operacion = ulid();
+    let mut hornada = json!({
+        "operacion_id": operacion, "producto_id": producto_id,
+        "unidades": 6, "creado_local": creado_ahora(),
+    });
+    let (estado, error) = api.post("/hornadas", None, &hornada).await;
+    assert_eq!(estado, StatusCode::CONFLICT);
+    assert_eq!(error["codigo"], "materiales_insuficientes");
+
+    hornada["permitir_faltantes"] = json!(true);
+    assert_eq!(
+        api.post("/hornadas", None, &hornada).await.0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        api.post("/hornadas", None, &hornada).await.0,
+        StatusCode::OK
+    );
+    let (_, stock) = api.get("/materiales", None).await;
+    assert_eq!(stock["materiales"][&sku]["saldo_millonesimas"], -1_500_000);
+
+    let numero = nombre_unico("factura");
+    let factura = json!({
+        "numero": numero, "proveedor": "Distribuidor de prueba", "fecha": hoy(),
+        "lineas": [{"sku": sku, "descripcion": "Harina", "cantidad": 2, "costo_unitario": 28.5}],
+    });
+    let importar = || {
+        api.cliente
+            .post(format!("{}/facturas/importar", api.base))
+            .bearer_auth("clave-importacion-pruebas")
+            .json(&factura)
+            .send()
+    };
+    assert_eq!(importar().await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(importar().await.unwrap().status(), StatusCode::OK);
+    let (_, stock) = api.get("/materiales", None).await;
+    assert_eq!(stock["materiales"][&sku]["saldo_millonesimas"], 500_000);
+
+    hornada["operacion_id"] = json!(ulid());
+    hornada["unidades"] = json!(2);
+    hornada["permitir_faltantes"] = json!(false);
+    assert_eq!(
+        api.post("/hornadas", None, &hornada).await.0,
+        StatusCode::CREATED
+    );
+    let (_, stock) = api.get("/materiales", None).await;
+    assert_eq!(stock["materiales"][&sku]["saldo_millonesimas"], 0);
+
+    db.delete("panaderia", &format!("hornada:{operacion}"))
+        .await;
+    db.delete(
+        "panaderia",
+        &format!("hornada:{}", hornada["operacion_id"].as_str().unwrap()),
+    )
+    .await;
+    db.delete("catalogo", &producto_id).await;
+    use sha2::{Digest, Sha256};
+    let identidad = serde_json::to_vec(&("Distribuidor de prueba", numero)).unwrap();
+    db.delete(
+        "panaderia",
+        &format!("factura:{:x}", Sha256::digest(identidad)),
+    )
+    .await;
 }

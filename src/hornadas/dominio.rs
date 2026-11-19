@@ -67,6 +67,8 @@ impl ErrorCampo {
 /// (`activo` solo impide *vender*), por eso aquí no se lee.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct ProductoCatalogo {
+    #[serde(default)]
+    pub receta: Option<Vec<crate::materiales::Ingrediente>>,
     /// `_id` del documento, ej. `producto:pan-frances`.
     #[serde(rename = "_id")]
     pub id: String,
@@ -111,6 +113,8 @@ pub fn zona_negocio() -> FixedOffset {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SolicitudHornada {
+    #[serde(default)]
+    pub permitir_faltantes: bool,
     /// ULID generado en el cliente **al abrir el formulario** y reutilizado en todos
     /// los reintentos. Es la **llave de idempotencia**.
     pub operacion_id: String,
@@ -140,6 +144,10 @@ pub struct SolicitudHornada {
 /// `_id`, `producto_id`, `unidades` y `fecha_vencimiento`.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Hornada {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub consumo_materiales: Vec<crate::materiales::Ingrediente>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub permitir_faltantes: bool,
     /// `_id` en CouchDB: `hornada:{ULID}`. Como el ULID viene del cliente, un
     /// reenvío choca con el mismo `_id` y CouchDB no deja duplicarla.
     #[serde(rename = "_id")]
@@ -291,7 +299,7 @@ impl SolicitudHornada {
     /// > `contratos/documentos.md` §1.6 define la fórmula solo para ventas; esta es
     /// > la propuesta para hornadas y conviene documentarla allí.
     pub fn huella(&self) -> String {
-        let canonico = format!(
+        let mut canonico = format!(
             "v1|{}|{}|{}|{}|{}",
             self.operacion_id,
             self.producto_id,
@@ -300,6 +308,9 @@ impl SolicitudHornada {
             self.fecha_vencimiento.as_deref().unwrap_or("")
         );
 
+        if self.permitir_faltantes {
+            canonico.push_str("|permitir_faltantes");
+        }
         let digest = Sha256::digest(canonico.as_bytes());
         // Cada byte se escribe como 2 dígitos hexadecimales.
         let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
@@ -345,6 +356,8 @@ pub fn construir_hornada(
     };
 
     Ok(Hornada {
+        consumo_materiales: Vec::new(),
+        permitir_faltantes: solicitud.permitir_faltantes,
         id: solicitud.id_documento(),
         rev: None, // CouchDB la asigna al guardar.
         tipo: "hornada".to_string(),
@@ -391,6 +404,7 @@ mod pruebas {
 
     fn producto() -> ProductoCatalogo {
         ProductoCatalogo {
+            receta: None,
             id: "producto:pan-frances".into(),
             vida_util_dias: 1,
         }
@@ -399,6 +413,7 @@ mod pruebas {
     /// Mismo ejemplo del documento estándar (§6).
     fn solicitud() -> SolicitudHornada {
         SolicitudHornada {
+            permitir_faltantes: false,
             operacion_id: "01J9ZK5A2B3C4D5E6F7G8H9J0K".into(),
             producto_id: "producto:pan-frances".into(),
             unidades: 150,
@@ -445,6 +460,7 @@ mod pruebas {
         assert_eq!(h.fecha_vencimiento, dia(14)); // vida útil 1
 
         let semita = ProductoCatalogo {
+            receta: None,
             id: "producto:semita".into(),
             vida_util_dias: 2,
         };
@@ -534,6 +550,7 @@ mod pruebas {
         s.fecha_vencimiento = None;
         let v = s.validar().unwrap();
         let roto = ProductoCatalogo {
+            receta: None,
             id: "producto:pan-frances".into(),
             vida_util_dias: -3,
         };
