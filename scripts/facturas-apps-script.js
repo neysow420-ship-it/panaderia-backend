@@ -41,7 +41,7 @@ function importarFacturas() {
         if (direccion !== remitente) continue;
 
         const adjuntos = mensaje.getAttachments({ includeInlineImages: false })
-          .filter((archivo) => archivo.getName() === 'factura.json');
+          .filter((archivo) => archivo.getName().toLowerCase().endsWith('.json'));
         if (adjuntos.length !== 1 || adjuntos[0].getSize() > 16 * 1024) {
           console.warn('Adjunto inválido en el mensaje ' + id);
           continue;

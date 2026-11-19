@@ -231,6 +231,12 @@ En el servidor, genera una clave con `openssl rand -hex 32` y guárdala como
 script**, agrega esa misma clave, `API_URL` con la base HTTPS pública del
 backend y `REMITENTE` con la dirección que envía los adjuntos.
 
+En el Gmail receptor, configura un filtro con el correo de `REMITENTE` en
+**De** y `filename:json` en **Contiene las palabras**. Selecciona **Aplicar
+la etiqueta** y elige `facturas-panaderia`. Apps Script admite un solo adjunto
+que termine en `.json` por correo, de hasta 16 KiB. Por ejemplo,
+`factura1.json` y `compra-noviembre.json` son nombres válidos.
+
 Ejecuta manualmente `importarFacturas` y autoriza el acceso desde el buzón
 dedicado. Envía y etiqueta un correo de prueba. La etiqueta
 `facturas-importadas` se aplica después de que el backend guarda la factura
